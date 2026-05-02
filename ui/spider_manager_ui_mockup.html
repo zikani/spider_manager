@@ -1,0 +1,404 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg0: #0d1117; --bg1: #161b22; --bg2: #21262d; --bg3: #30363d;
+    --acc: #58a6ff; --grn: #3fb950; --org: #f78166; --ylw: #d29922;
+    --txt: #e6edf3; --muted: #8b949e; --bdr: #30363d;
+  }
+  body { background: var(--bg0); color: var(--txt); font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; }
+  .app { display: flex; flex-direction: column; height: 600px; overflow: hidden; border-radius: 10px; border: 1px solid var(--bdr); }
+
+  /* Title Bar */
+  .titlebar { background: var(--bg1); border-bottom: 1px solid var(--bdr); padding: 0 14px; height: 36px; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+  .titlebar .dots { display: flex; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+  .titlebar-title { font-size: 12px; color: var(--muted); letter-spacing: 0.5px; font-weight: 500; }
+  .titlebar-title span { color: var(--acc); }
+
+  /* Menu Bar */
+  .menubar { background: var(--bg1); border-bottom: 1px solid var(--bdr); padding: 0 12px; height: 28px; display: flex; align-items: center; gap: 2px; }
+  .menu-item { padding: 3px 10px; border-radius: 4px; color: var(--txt); font-size: 12px; cursor: pointer; transition: background .15s; }
+  .menu-item:hover { background: var(--bg2); }
+
+  /* Toolbar */
+  .toolbar { background: var(--bg1); border-bottom: 1px solid var(--bdr); padding: 6px 12px; display: flex; align-items: center; gap: 6px; height: 48px; }
+  .tb-btn { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--bdr); background: transparent; color: var(--txt); font-size: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .tb-btn:hover { background: var(--bg2); }
+  .tb-btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .tb-btn.primary:hover { background: #388bfd; }
+  .tb-btn .icon { font-size: 14px; }
+  .tb-sep { width: 1px; height: 24px; background: var(--bdr); margin: 0 4px; }
+  .tb-search { margin-left: auto; display: flex; align-items: center; gap: 6px; background: var(--bg0); border: 1px solid var(--bdr); border-radius: 6px; padding: 4px 10px; }
+  .tb-search input { background: none; border: none; outline: none; color: var(--txt); font-size: 12px; width: 140px; }
+  .tb-search input::placeholder { color: var(--muted); }
+
+  /* Main Body */
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 190px; min-width: 190px; background: var(--bg1); border-right: 1px solid var(--bdr); display: flex; flex-direction: column; padding: 8px 0; overflow-y: auto; }
+  .sb-section { padding: 10px 16px 4px; font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; }
+  .sb-item { display: flex; align-items: center; gap: 8px; padding: 7px 16px; cursor: pointer; border-radius: 6px; margin: 1px 8px; transition: background .12s; color: var(--txt); font-size: 12px; }
+  .sb-item:hover { background: var(--bg2); }
+  .sb-item.active { background: rgba(31,111,235,0.18); color: var(--acc); font-weight: 600; }
+  .sb-item .sb-icon { font-size: 14px; width: 18px; text-align: center; }
+  .sb-item .sb-badge { margin-left: auto; background: var(--bg2); color: var(--muted); border-radius: 10px; padding: 1px 7px; font-size: 10px; }
+  .sb-item.active .sb-badge { background: rgba(88,166,255,0.2); color: var(--acc); }
+  .sb-divider { height: 1px; background: var(--bdr); margin: 6px 12px; }
+  .sb-speed { margin: auto 12px 12px; background: var(--bg2); border-radius: 8px; padding: 10px 12px; }
+  .sb-speed-label { font-size: 10px; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sb-speed-val { font-size: 20px; font-weight: 700; color: var(--acc); line-height: 1; }
+  .sb-speed-unit { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Content */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg0); }
+
+  /* Tab Bar */
+  .tabbar { display: flex; border-bottom: 1px solid var(--bdr); background: var(--bg1); padding: 0 12px; gap: 0; }
+  .tab { padding: 8px 16px; font-size: 12px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .12s; white-space: nowrap; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { color: var(--acc); border-bottom-color: var(--acc); font-weight: 500; }
+
+  /* Table */
+  .table-wrap { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead tr { background: var(--bg1); position: sticky; top: 0; z-index: 1; }
+  thead th { padding: 8px 12px; text-align: left; color: var(--muted); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--bdr); white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid rgba(48,54,61,0.6); transition: background .1s; cursor: pointer; }
+  tbody tr:hover { background: rgba(33,38,45,0.7); }
+  tbody tr.selected { background: rgba(31,111,235,0.1); }
+  td { padding: 9px 12px; vertical-align: middle; }
+  .status-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+  .si-dl  { background: rgba(88,166,255,0.15); color: var(--acc); }
+  .si-ok  { background: rgba(63,185,80,0.15);  color: var(--grn); }
+  .si-ps  { background: rgba(210,153,34,0.15);  color: var(--ylw); }
+  .si-er  { background: rgba(247,129,102,0.15); color: var(--org); }
+  .si-q   { background: rgba(139,148,158,0.15); color: var(--muted); }
+  .fname { color: var(--txt); font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fsize { color: var(--muted); white-space: nowrap; }
+  .prog-wrap { width: 110px; }
+  .prog-bar { height: 5px; background: var(--bg2); border-radius: 3px; overflow: hidden; margin-bottom: 3px; }
+  .prog-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #1f6feb, #58a6ff); transition: width .3s; }
+  .prog-fill.complete { background: linear-gradient(90deg, #238636, #3fb950); }
+  .prog-fill.error { background: var(--org); }
+  .prog-pct { font-size: 10px; color: var(--muted); }
+  .speed-cell { color: var(--acc); font-size: 11px; white-space: nowrap; font-family: monospace; }
+  .speed-cell.none { color: var(--muted); }
+  .eta-cell { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .cat-pill { font-size: 10px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .cp-video { background: rgba(88,166,255,0.12); color: var(--acc); }
+  .cp-audio { background: rgba(63,185,80,0.12); color: var(--grn); }
+  .cp-doc   { background: rgba(210,153,34,0.12); color: var(--ylw); }
+  .cp-arc   { background: rgba(247,129,102,0.12); color: var(--org); }
+  .cp-prog  { background: rgba(139,148,158,0.12); color: var(--muted); }
+
+  /* Context menu feel for row actions */
+  .row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+  tbody tr:hover .row-actions { opacity: 1; }
+  .row-btn { background: var(--bg2); border: 1px solid var(--bdr); border-radius: 4px; color: var(--muted); font-size: 10px; padding: 2px 6px; cursor: pointer; }
+  .row-btn:hover { background: var(--bg3); color: var(--txt); }
+
+  /* Speed Graph */
+  .graph-frame { height: 90px; background: var(--bg1); border-top: 1px solid var(--bdr); padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .graph-header { display: flex; justify-content: space-between; align-items: center; }
+  .graph-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .graph-peak  { font-size: 10px; color: var(--muted); }
+  .graph-peak span { color: var(--acc); }
+  canvas#speedCanvas { width: 100%; height: 46px; display: block; }
+
+  /* Status Bar */
+  .statusbar { background: var(--bg1); border-top: 1px solid var(--bdr); padding: 4px 14px; display: flex; align-items: center; gap: 18px; font-size: 11px; color: var(--muted); height: 26px; }
+  .sb-stat { display: flex; align-items: center; gap: 5px; }
+  .sb-stat .dot2 { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-grn { background: var(--grn); } .dot-acc { background: var(--acc); } .dot-ylw { background: var(--ylw); }
+  .sb-right { margin-left: auto; display: flex; gap: 16px; }
+</style>
+
+<h2 class="sr-only">Spider Manager download manager application UI mockup showing main window with sidebar, download table, speed graph, and status bar</h2>
+
+<div class="app">
+  <!-- Title Bar -->
+  <div class="titlebar">
+    <div class="dots">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+    </div>
+    <div class="titlebar-title"><span>Spider</span> Manager &nbsp;·&nbsp; 3 active</div>
+    <div style="width:54px"></div>
+  </div>
+
+  <!-- Menu Bar -->
+  <div class="menubar">
+    <div class="menu-item">File</div>
+    <div class="menu-item">View</div>
+    <div class="menu-item">Downloads</div>
+    <div class="menu-item">Tools</div>
+    <div class="menu-item">Help</div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="tb-btn primary"><span class="icon">＋</span> Add URL</button>
+    <button class="tb-btn"><span class="icon">⬇</span> Batch</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn"><span class="icon">▶</span> Resume</button>
+    <button class="tb-btn"><span class="icon">⏸</span> Pause</button>
+    <button class="tb-btn"><span class="icon">✕</span> Cancel</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn"><span class="icon">🗑</span> Delete</button>
+    <button class="tb-btn"><span class="icon">📁</span> Open Folder</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn"><span class="icon">⚙</span> Settings</button>
+    <div class="tb-search">
+      <span style="color:var(--muted);font-size:13px">⌕</span>
+      <input type="text" placeholder="Search downloads...">
+    </div>
+  </div>
+
+  <!-- Main Body -->
+  <div class="body">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sb-section">Categories</div>
+      <div class="sb-item active">
+        <span class="sb-icon">⊞</span> All Downloads
+        <span class="sb-badge">12</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon" style="color:#58a6ff">▶</span> Downloading
+        <span class="sb-badge">3</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon" style="color:#d29922">⏸</span> Paused
+        <span class="sb-badge">2</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon" style="color:#3fb950">✓</span> Completed
+        <span class="sb-badge">6</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon" style="color:#f78166">!</span> Failed
+        <span class="sb-badge">1</span>
+      </div>
+
+      <div class="sb-divider"></div>
+      <div class="sb-section">File Type</div>
+      <div class="sb-item">
+        <span class="sb-icon">🎬</span> Video
+        <span class="sb-badge">4</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon">🎵</span> Audio
+        <span class="sb-badge">2</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon">📄</span> Documents
+        <span class="sb-badge">3</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon">📦</span> Archives
+        <span class="sb-badge">2</span>
+      </div>
+      <div class="sb-item">
+        <span class="sb-icon">⚙</span> Programs
+        <span class="sb-badge">1</span>
+      </div>
+
+      <div class="sb-divider"></div>
+      <div class="sb-section">Scheduler</div>
+      <div class="sb-item">
+        <span class="sb-icon">🕐</span> Scheduled
+        <span class="sb-badge">0</span>
+      </div>
+
+      <div class="sb-speed">
+        <div class="sb-speed-label">Total Speed</div>
+        <div class="sb-speed-val" id="liveSpeed">4.7</div>
+        <div class="sb-speed-unit">MB/s download</div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content">
+      <div class="tabbar">
+        <div class="tab active">All Downloads</div>
+        <div class="tab">Queue</div>
+        <div class="tab">Scheduler</div>
+        <div class="tab">Speed Limiter</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:28px"></th>
+              <th>Filename</th>
+              <th>Size</th>
+              <th style="width:130px">Progress</th>
+              <th>Speed</th>
+              <th>ETA</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dlTable">
+            <!-- Rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Speed Graph -->
+      <div class="graph-frame">
+        <div class="graph-header">
+          <span class="graph-label">↓ Download Speed (last 60s)</span>
+          <span class="graph-peak">Peak: <span id="peakSpeed">8.2 MB/s</span></span>
+        </div>
+        <canvas id="speedCanvas"></canvas>
+      </div>
+
+      <!-- Status Bar -->
+      <div class="statusbar">
+        <div class="sb-stat"><div class="dot2 dot-acc"></div>3 downloading</div>
+        <div class="sb-stat"><div class="dot2 dot-ylw"></div>2 paused</div>
+        <div class="sb-stat"><div class="dot2 dot-grn"></div>6 completed</div>
+        <div class="sb-right">
+          <span>↓ <span id="sbSpeed">4.7 MB/s</span></span>
+          <span>💾 Disk free: 142 GB</span>
+          <span id="sbTime">14:32:07</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const downloads = [
+  { name:"ubuntu-24.04-desktop-amd64.iso", size:"5.2 GB", pct:64, state:"dl",  speed:"4.2 MB/s", eta:"8m 12s", cat:"cp-prog" , catName:"Program" },
+  { name:"Interstellar.2014.2160p.mkv",    size:"28.4 GB",pct:31, state:"dl",  speed:"6.1 MB/s", eta:"1h 14m", cat:"cp-video", catName:"Video"   },
+  { name:"Pink Floyd - Wish You Were.flac", size:"412 MB", pct:87, state:"dl",  speed:"2.8 MB/s", eta:"45s",    cat:"cp-audio", catName:"Audio"   },
+  { name:"Adobe Premiere Pro 2024.zip",    size:"3.8 GB", pct:45, state:"ps",  speed:"—",         eta:"—",      cat:"cp-arc",   catName:"Archive" },
+  { name:"deep_learning_book.pdf",         size:"18 MB",  pct:100,state:"ok",  speed:"—",         eta:"done",   cat:"cp-doc",   catName:"Document"},
+  { name:"Blender-4.1-linux-x64.tar.xz",  size:"221 MB", pct:100,state:"ok",  speed:"—",         eta:"done",   cat:"cp-prog",  catName:"Program" },
+  { name:"bohemian_rhapsody_4k.mp4",       size:"7.1 GB", pct:22, state:"q",   speed:"—",         eta:"—",      cat:"cp-video", catName:"Video"   },
+  { name:"python-3.12.3-amd64.exe",        size:"25 MB",  pct:0,  state:"er",  speed:"!",         eta:"error",  cat:"cp-prog",  catName:"Program" },
+  { name:"Dune.Part.Two.2024.mkv",         size:"22.8 GB",pct:100,state:"ok",  speed:"—",         eta:"done",   cat:"cp-video", catName:"Video"   },
+  { name:"nodejs-v22.0.0-win-x64.zip",     size:"29 MB",  pct:100,state:"ok",  speed:"—",         eta:"done",   cat:"cp-arc",   catName:"Archive" },
+  { name:"arch-linux-2024.iso",            size:"874 MB", pct:55, state:"ps",  speed:"—",         eta:"—",      cat:"cp-prog",  catName:"Program" },
+  { name:"lofi_study_mix_8hr.mp3",         size:"890 MB", pct:100,state:"ok",  speed:"—",         eta:"done",   cat:"cp-audio", catName:"Audio"   },
+];
+
+const stateMap = {
+  dl: ['si-dl','▶'], ok: ['si-ok','✓'], ps: ['si-ps','⏸'], er: ['si-er','!'], q: ['si-q','…']
+};
+
+function renderTable() {
+  const tbody = document.getElementById('dlTable');
+  tbody.innerHTML = downloads.map((d,i) => {
+    const [cls, icon] = stateMap[d.state];
+    const fillCls = d.state==='ok'?'complete':d.state==='er'?'error':'';
+    const errColor = d.state==='er' ? 'color:var(--org)' : '';
+    return `<tr${i===0?' class="selected"':''}  onclick="this.closest('tbody').querySelectorAll('tr').forEach(r=>r.className='');this.className='selected'">
+      <td><div class="status-icon ${cls}">${icon}</div></td>
+      <td><div class="fname" title="${d.name}">${d.name}</div></td>
+      <td class="fsize">${d.size}</td>
+      <td>
+        <div class="prog-wrap">
+          <div class="prog-bar"><div class="prog-fill ${fillCls}" style="width:${d.pct}%"></div></div>
+          <div class="prog-pct" style="${errColor}">${d.state==='er'?'Error':d.pct+'%'}</div>
+        </div>
+      </td>
+      <td class="speed-cell${d.speed==='—'?' none':''}">${d.speed}</td>
+      <td class="eta-cell">${d.eta}</td>
+      <td><span class="cat-pill ${d.cat}">${d.catName}</span></td>
+      <td><div class="row-actions">
+        ${d.state==='dl'?'<button class="row-btn">⏸</button>':''}
+        ${d.state==='ps'?'<button class="row-btn">▶</button>':''}
+        <button class="row-btn">📁</button>
+        <button class="row-btn">✕</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// Speed Graph
+const canvas = document.getElementById('speedCanvas');
+function resizeCanvas() {
+  canvas.width = canvas.offsetWidth * (window.devicePixelRatio||1);
+  canvas.height = canvas.offsetHeight * (window.devicePixelRatio||1);
+}
+const graphData = Array.from({length:60}, (_,i) => {
+  const t = i/59;
+  return 2 + Math.sin(t*8)*1.5 + Math.cos(t*13+1)*1 + Math.random()*0.8;
+});
+function drawGraph() {
+  resizeCanvas();
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const dpr = window.devicePixelRatio||1;
+  ctx.clearRect(0,0,W,H);
+  const max = Math.max(...graphData,1);
+  const pts = graphData.map((v,i)=>[i/(graphData.length-1)*W, H - v/max*H*0.9 - H*0.05]);
+
+  // Fill
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0, 'rgba(88,166,255,0.25)');
+  grad.addColorStop(1, 'rgba(88,166,255,0)');
+  ctx.beginPath();
+  ctx.moveTo(0,H);
+  pts.forEach(([x,y])=>ctx.lineTo(x,y));
+  ctx.lineTo(W,H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(48,54,61,0.6)';
+  ctx.lineWidth = 0.5 * dpr;
+  [0.25,0.5,0.75].forEach(f => {
+    const y = H - f*H*0.9 - H*0.05;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  });
+}
+
+// Live updates
+let tick = 0;
+function animate() {
+  tick++;
+  // Shift graph
+  graphData.shift();
+  graphData.push(2 + Math.sin(tick*0.15)*2 + Math.cos(tick*0.23+1)*1.2 + Math.random()*0.8);
+  drawGraph();
+
+  // Update speed
+  const spd = (graphData[graphData.length-1]).toFixed(1);
+  document.getElementById('liveSpeed').textContent = spd;
+  document.getElementById('sbSpeed').textContent = spd + ' MB/s';
+
+  // Update time
+  const now = new Date();
+  document.getElementById('sbTime').textContent = now.toTimeString().slice(0,8);
+
+  // Cycle active download progress
+  [0,1,2].forEach(i => {
+    if(downloads[i].state==='dl') {
+      downloads[i].pct = Math.min(100, downloads[i].pct + (Math.random()*0.4));
+      if(downloads[i].pct >= 100) { downloads[i].state='ok'; downloads[i].speed='—'; downloads[i].eta='done'; }
+    }
+  });
+  renderTable();
+}
+
+renderTable();
+drawGraph();
+setInterval(animate, 800);
+</script>

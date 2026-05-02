@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Server / FTP / proxy" role="img">
+  <title>Server / FTP / proxy</title>
+  <rect x="2" y="2" width="20" height="8" rx="2" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <rect x="2" y="14" width="20" height="8" rx="2" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <line x1="6" y1="6" x2="6.01" y2="6" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <line x1="6" y1="18" x2="6.01" y2="18" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+</svg>

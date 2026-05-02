@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Preview / open file" role="img">
+  <title>Preview / open file</title>
+  <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <circle cx="12" cy="12" r="3" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#4FC3F7" />
+</svg>

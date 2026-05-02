@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Notes / comments" role="img">
+  <title>Notes / comments</title>
+  <path d="M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h7l5-5V4a2 2 0 0 0-2-2z" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <polyline points="14,2 14,9 21,9" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <line x1="8" y1="13" x2="14" y2="13" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <line x1="8" y1="17" x2="12" y2="17" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+</svg>

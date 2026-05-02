@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="WiFi / wireless connection" role="img">
+  <title>WiFi / wireless connection</title>
+  <path d="M5 12.55A11 11 0 0 1 19 12.55" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M1.42 9A16 16 0 0 1 22.58 9" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M8.53 16.11A6 6 0 0 1 15.47 16" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <circle cx="12" cy="20" r="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#4FC3F7" />
+</svg>

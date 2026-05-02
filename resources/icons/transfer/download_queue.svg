@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Queue / list of downloads" role="img">
+  <title>Queue / list of downloads</title>
+  <rect x="3" y="3" width="18" height="4" rx="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <rect x="3" y="10" width="12" height="4" rx="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <rect x="3" y="17" width="8" height="4" rx="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <polyline points="18,14 21,17 18,20" stroke="#4FC3F7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+</svg>

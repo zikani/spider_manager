@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-label="Download paused" role="img">
+  <title>Download paused</title>
+  <circle cx="12" cy="12" r="9" stroke="#FFA726" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <rect x="9" y="8" width="2.5" height="8" rx="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#FFA726" />
+  <rect x="12.5" y="8" width="2.5" height="8" rx="1" stroke="#E8F4FD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#FFA726" />
+</svg>
