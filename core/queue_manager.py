@@ -11,6 +11,8 @@ from collections import deque
 from collections.abc import Callable
 from typing import Optional
 
+from PyQt6.QtCore import QObject, pyqtSignal
+
 from config.constants import DEFAULT_CONCURRENT, DownloadState
 from core.download_engine import DownloadEngine, DownloadTask
 from utils.logger import get_logger
@@ -18,13 +20,17 @@ from utils.logger import get_logger
 log = get_logger(__name__)
 
 
-class QueueManager:
+class QueueManager(QObject):
     """
     Central download queue with:
     - Priority queuing (high/normal/low)
     - Configurable concurrency limit
     - Category-based filtering
     """
+    
+    download_completed = pyqtSignal(str)
+    download_failed = pyqtSignal(str)
+    queue_finished = pyqtSignal()
 
     def __init__(
         self,
@@ -32,6 +38,7 @@ class QueueManager:
         max_concurrent: int = DEFAULT_CONCURRENT,
         scheduler_allows_dispatch: Callable[[], bool] | None = None,
     ):
+        super().__init__()
         self.engine = engine
         self.max_concurrent = max_concurrent
         self._scheduler_allows_dispatch = scheduler_allows_dispatch or (lambda: True)
@@ -39,6 +46,8 @@ class QueueManager:
         self._active: dict[str, DownloadTask] = {}
         self._completed: list[DownloadTask] = []
         self._lock = asyncio.Lock()
+        self._dispatch_task: Optional[asyncio.Task] = None
+        self._dispatch_pending: bool = False
         self._load_queue()
 
     def _load_queue(self):
@@ -83,6 +92,22 @@ class QueueManager:
             "downloaded": task.downloaded,
             "state": task.state,
             "category": task.category,
+            "download_mode": task.download_mode,
+            "stream_manifest_url": task.stream_manifest_url,
+            "stream_type": task.stream_type,
+            "stream_duration_sec": task.stream_duration_sec,
+            "is_live": task.is_live,
+            "speed": task.speed,
+            "peak_speed": task.peak_speed,
+            "eta": task.eta,
+            "error": task.error,
+            "retry_count": task.retry_count,
+            "expected_checksum": task.expected_checksum,
+            "referrer": task.referrer,
+            "headers": task.headers,
+            "created_at": task.created_at,
+            "started_at": task.started_at,
+            "completed_at": task.completed_at,
             "segments": [
                 {
                     "index": s.index,
@@ -105,7 +130,23 @@ class QueueManager:
             total_size=d["total_size"],
             downloaded=d["downloaded"],
             state=d["state"],
-            category=d.get("category", "Other")
+            category=d.get("category", "Other"),
+            download_mode=d.get("download_mode", "direct"),
+            stream_manifest_url=d.get("stream_manifest_url", ""),
+            stream_type=d.get("stream_type", ""),
+            stream_duration_sec=d.get("stream_duration_sec", 0.0),
+            is_live=d.get("is_live", False),
+            speed=d.get("speed", 0.0),
+            peak_speed=d.get("peak_speed", 0.0),
+            eta=d.get("eta", 0),
+            error=d.get("error", ""),
+            retry_count=d.get("retry_count", 0),
+            expected_checksum=d.get("expected_checksum", ""),
+            referrer=d.get("referrer", ""),
+            headers=d.get("headers", {}),
+            created_at=d.get("created_at", 0.0),
+            started_at=d.get("started_at"),
+            completed_at=d.get("completed_at"),
         )
         task.segments = [
             DownloadSegment(
@@ -138,7 +179,16 @@ class QueueManager:
         category: str = "Other",
         referrer: str = "",
         headers: dict | None = None,
+        mime_type: str | None = None,
     ) -> DownloadTask:
+        from config.settings import get_auto_categorize_enabled, get_download_directory
+        from utils.file_categorizer import FileCategorizer, DownloadPathManager
+        
+        if get_auto_categorize_enabled() and category == "Other":
+            category = FileCategorizer.categorize(filename, mime_type)
+            path_manager = DownloadPathManager(get_download_directory())
+            save_path = str(path_manager.get_category_path(category))
+        
         return DownloadTask(
             id=str(uuid.uuid4()),
             url=url,
@@ -159,21 +209,25 @@ class QueueManager:
         task = self._active.get(task_id)
         if task:
             await self.engine.pause(task)
-            async with self._lock:
-                if task_id in self._active:
-                    del self._active[task_id]
-                    self._queue.appendleft(task)
+        else:
+            task = self._find(task_id)
+            if task and task.state != DownloadState.PAUSED:
+                task.state = DownloadState.PAUSED
 
+    
     async def resume(self, task_id: str):
         task = self._find(task_id)
-        if not task or task.state != DownloadState.PAUSED:
+        if not task or task.state not in [DownloadState.PAUSED, DownloadState.QUEUED]:
             return
+        
         task.state = DownloadState.QUEUED
+        
         async with self._lock:
             self._queue = deque(t for t in self._queue if t.id != task_id)
             if task_id in self._active:
                 del self._active[task_id]
             self._queue.appendleft(task)
+        
         await self._try_dispatch()
 
     async def cancel(self, task_id: str):
@@ -187,6 +241,34 @@ class QueueManager:
             self._queue = deque(t for t in self._queue if t.id != task_id)
             if not was_active:
                 self._completed.append(task)
+
+    async def retry(self, task_id: str):
+        """Retry a failed or cancelled download."""
+        task = self._find(task_id)
+        if not task:
+            log.warning("Task not found for retry: %s", task_id)
+            return
+        
+        task.state = DownloadState.QUEUED
+        task.error = ""
+        task.downloaded = 0
+        task.speed = 0
+        task.retry_count = getattr(task, 'retry_count', 0) + 1
+        
+        for segment in task.segments:
+            segment.downloaded = 0
+            segment.complete = False
+        
+        async with self._lock:
+            self._completed = [t for t in self._completed if t.id != task_id]
+            self._queue = deque(t for t in self._queue if t.id != task_id)
+            if task_id in self._active:
+                del self._active[task_id]
+            
+            self._queue.appendleft(task)
+        
+        log.info("Retrying task: %s (attempt %d)", task.filename, task.retry_count)
+        await self._try_dispatch()
 
     def remove(self, task_id: str):
         if self._find(task_id):
@@ -206,7 +288,27 @@ class QueueManager:
 
     async def wake_dispatch(self) -> None:
         """Retry dispatch (e.g. when download schedule window opens)."""
-        await self._try_dispatch()
+        if self._dispatch_pending:
+            return
+            
+        self._dispatch_pending = True
+        
+        try:
+            if self._dispatch_task is None:
+                self._dispatch_task = asyncio.create_task(self._try_dispatch())
+            elif self._dispatch_task.done():
+                try:
+                    await self._dispatch_task
+                except Exception:
+                    pass
+                self._dispatch_task = asyncio.create_task(self._try_dispatch())
+            else:
+                return
+                
+            if self._dispatch_task:
+                await self._dispatch_task
+        finally:
+            self._dispatch_pending = False
 
     async def _try_dispatch(self):
         async with self._lock:
@@ -215,9 +317,18 @@ class QueueManager:
                 and len(self._active) < self.max_concurrent
                 and self._scheduler_allows_dispatch()
             ):
-                task = self._queue.popleft()
-                self._active[task.id] = task
-                asyncio.create_task(self._run_task(task))
+                for _ in range(len(self._queue)):
+                    task = self._queue[0]
+                    if task.state != DownloadState.PAUSED:
+                        self._queue.popleft()
+                        self._active[task.id] = task
+                        asyncio.create_task(self._run_task(task))
+                        break
+                    else:
+                        self._queue.popleft()
+                        self._queue.append(task)
+                else:
+                    break
 
     async def _run_task(self, task: DownloadTask):
         try:
@@ -225,14 +336,28 @@ class QueueManager:
         finally:
             async with self._lock:
                 if task.id in self._active:
-                    del self._active[task.id]
-                terminal = task.state in (
-                    DownloadState.COMPLETED,
-                    DownloadState.ERROR,
-                    DownloadState.CANCELLED,
-                )
-                if terminal:
-                    self._completed.append(task)
+                    if task.state == DownloadState.PAUSED:
+                        del self._active[task.id]
+                        task_in_queue = any(t.id == task.id for t in self._queue)
+                        if not task_in_queue:
+                            self._queue.appendleft(task)
+                        log.debug("Paused task moved back to queue: %s", task.filename)
+                    else:
+                        del self._active[task.id]
+                        terminal = task.state in (
+                            DownloadState.COMPLETED,
+                            DownloadState.ERROR,
+                            DownloadState.CANCELLED,
+                        )
+                        if terminal:
+                            self._completed.append(task)
+                            if task.state == DownloadState.COMPLETED:
+                                self.download_completed.emit(task.id)
+                            elif task.state == DownloadState.ERROR:
+                                self.download_failed.emit(task.id)
+                            
+                            if not self._queue and not self._active:
+                                self.queue_finished.emit()
             await self._try_dispatch()
 
     async def resume_all(self):
@@ -249,7 +374,7 @@ class QueueManager:
         """Pause all active downloads."""
         active_tasks = list(self._active.values())
         for task in active_tasks:
-            await self.pause(task.id)
+            await self.engine.pause(task)
 
     async def clear_all(self):
         """Clear all tasks from queue, active, and completed lists."""
@@ -320,7 +445,6 @@ class QueueManager:
         """Force check all URLs."""
         for task in self.all_tasks:
             if task.url:
-                # TODO: Implement URL validation
                 pass
 
 

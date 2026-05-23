@@ -36,7 +36,6 @@ class SystemTrayManager(QObject):
         self.menu = QMenu()
         self.menu.setObjectName("trayMenu")
         
-        # Actions
         show_action = self.menu.addAction(icons.get_icon(Icons.SPIDER_LOGO), "Show Spider Manager")
         show_action.triggered.connect(self.show_window_requested.emit)
         
@@ -47,7 +46,7 @@ class SystemTrayManager(QObject):
         
         self.show_downloads_action = self.menu.addAction(icons.get_icon(Icons.DOWNLOAD), "Show Downloads")
         self.show_downloads_action.triggered.connect(self.show_downloads_requested.emit)
-        self.show_downloads_action.setEnabled(False)  # Disabled when no active downloads
+        self.show_downloads_action.setEnabled(False)
         
         self.menu.addSeparator()
         
@@ -60,7 +59,6 @@ class SystemTrayManager(QObject):
         self.menu.addSeparator()
         
         settings_action = self.menu.addAction(icons.get_icon(Icons.SETTINGS), "Settings")
-        # In main_window.py we can connect this to _open_preferences
         
         exit_action = self.menu.addAction(icons.get_icon(Icons.STOP), "Exit")
         exit_action.triggered.connect(self.quit_requested.emit)
@@ -76,24 +74,19 @@ class SystemTrayManager(QObject):
         self._update_icon()
         self.tray_icon.setToolTip(f"Spider Manager - {mbps:.2f} MB/s - {active_downloads} active")
         
-        # Enable/disable show downloads menu item based on active downloads
         self.show_downloads_action.setEnabled(active_downloads > 0)
 
     def _update_icon(self):
-        # Create a base icon from spider logo
         base_pixmap = icons.get_icon(Icons.SPIDER_LOGO).pixmap(32, 32)
         
         if self._speed_mbps > 0:
-            # Draw speed badge if downloading
             painter = QPainter(base_pixmap)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             
-            # Badge background
             painter.setBrush(QColor("#1f6feb"))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(16, 16, 16, 16, 4, 4)
             
-            # Badge text
             painter.setPen(QColor("#ffffff"))
             font = QFont("Segoe UI", 8, QFont.Weight.Bold)
             painter.setFont(font)

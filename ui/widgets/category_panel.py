@@ -41,24 +41,20 @@ class CategoryItem(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Draw background if hovered or active
         if self.active:
             painter.setBrush(QColor("rgba(31,111,235,0.18)"))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(QRectF(self.rect()), 6, 6)
 
-        # Draw Icon
         if self.icon:
             icon_rect = QRectF(12, 6, 16, 16)
             self.icon.paint(painter, icon_rect.toRect())
 
-        # Draw Text
         font = QFont("Segoe UI", 10, QFont.Weight.Medium if self.active else QFont.Weight.Normal)
         painter.setFont(font)
         painter.setPen(QColor("#58a6ff") if self.active else QColor("#e6edf3"))
         painter.drawText(38, 19, self.text)
 
-        # Draw Badge
         badge_font = QFont("Segoe UI", 9, QFont.Weight.Bold)
         painter.setFont(badge_font)
         badge_bg = QColor("rgba(88,166,255,0.2)" if self.active else "#21262d")
@@ -158,7 +154,6 @@ class CategoryPanel(QWidget):
         self.speed_box.setObjectName("speedBox")
         self.speed_box.setStyleSheet(
             """
-            #speedBox { background: #21262d; border-radius: 8px; margin: 12px; }
             QLabel { background: transparent; }
         """
         )

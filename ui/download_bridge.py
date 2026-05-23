@@ -9,3 +9,4 @@ class DownloadBridge(QObject):
     tasks_changed = pyqtSignal()
     stats_changed = pyqtSignal()
     task_progress = pyqtSignal(str)
+    pause_resume_requested = pyqtSignal(str)

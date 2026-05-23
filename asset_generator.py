@@ -6,9 +6,9 @@ Icons are theme-aware (light/dark), crisp at all sizes, and follow a unified
 spider-web aesthetic. Outputs both individual .svg files and a sprite sheet.
 
 Usage:
-    python icon_generator.py                  # generates to ./icons/
+    python icon_generator.py
     python icon_generator.py --out ./assets/icons --size 24 --theme dark
-    python icon_generator.py --sprite         # also builds icons_sprite.svg
+    python icon_generator.py --sprite
 """
 
 import os
@@ -19,25 +19,22 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Theme Palettes
-# ─────────────────────────────────────────────────────────────────────────────
 
 THEMES = {
     "dark": {
-        "primary":    "#E8F4FD",   # near-white — icon strokes on dark bg
-        "accent":     "#4FC3F7",   # spider-blue
-        "accent2":    "#29B6F6",   # deeper blue for fills
-        "danger":     "#EF5350",   # red — stop / error / delete
-        "success":    "#66BB6A",   # green — complete / seeding
-        "warning":    "#FFA726",   # orange — paused / slow
-        "muted":      "#78909C",   # grey — disabled / secondary
-        "bg":         "none",      # transparent so PyQt uses widget bg
+        "primary":    "#E8F4FD",
+        "accent":     "#4FC3F7",
+        "accent2":    "#29B6F6",
+        "danger":     "#EF5350",
+        "success":    "#66BB6A",
+        "warning":    "#FFA726",
+        "muted":      "#78909C",
+        "bg":         "none",
     },
     "light": {
-        "primary":    "#1A237E",   # deep navy — icon strokes on light bg
-        "accent":     "#0277BD",   # spider-blue
-        "accent2":    "#01579B",   # deeper blue
+        "primary":    "#1A237E",
+        "accent":     "#0277BD",
+        "accent2":    "#01579B",
         "danger":     "#C62828",
         "success":    "#2E7D32",
         "warning":    "#E65100",
@@ -47,14 +44,8 @@ THEMES = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Icon Definitions
-# Each entry: (name, category, svg_path_data, description)
-# All paths are drawn on a 24×24 grid, stroke-width=1.8, stroke-linecap=round
-# ─────────────────────────────────────────────────────────────────────────────
 
 ICON_DEFS = [
-    # ── Downloads / Transfer ──────────────────────────────────────────────
 
     {
         "name": "download",
@@ -129,7 +120,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Playback Controls ─────────────────────────────────────────────────
 
     {
         "name": "play",
@@ -184,7 +174,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── File & Folder ─────────────────────────────────────────────────────
 
     {
         "name": "file",
@@ -276,7 +265,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Network & Connection ──────────────────────────────────────────────
 
     {
         "name": "link",
@@ -357,7 +345,6 @@ ICON_DEFS = [
         "category": "network",
         "desc": "BitTorrent / P2P",
         "elements": [
-            # Spider web / torrent symbol
             {"type": "circle","cx": 12, "cy": 12, "r": 9},
             {"type": "circle","cx": 12, "cy": 12, "r": 5},
             {"type": "circle","cx": 12, "cy": 12, "r": 1.5, "fill": "accent"},
@@ -378,7 +365,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Status & Notifications ────────────────────────────────────────────
 
     {
         "name": "status_complete",
@@ -458,7 +444,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── App Controls ──────────────────────────────────────────────────────
 
     {
         "name": "settings",
@@ -582,7 +567,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Sidebar / Navigation ──────────────────────────────────────────────
 
     {
         "name": "home",
@@ -648,7 +632,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Toolbar / View ────────────────────────────────────────────────────
 
     {
         "name": "view_list",
@@ -720,7 +703,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Security & Auth ───────────────────────────────────────────────────
 
     {
         "name": "lock",
@@ -758,7 +740,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Media & Preview ───────────────────────────────────────────────────
 
     {
         "name": "preview",
@@ -795,7 +776,6 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Misc / Utility ────────────────────────────────────────────────────
 
     {
         "name": "options_dots",
@@ -880,25 +860,20 @@ ICON_DEFS = [
         ],
     },
 
-    # ── Spider-themed logo icons ──────────────────────────────────────────
 
     {
         "name": "spider_logo",
         "category": "brand",
         "desc": "Spider app logo — web with spider",
         "elements": [
-            # Web rings
             {"type": "circle","cx": 12, "cy": 12, "r": 9,   "stroke_width": 1.2},
             {"type": "circle","cx": 12, "cy": 12, "r": 5.5, "stroke_width": 1.2},
             {"type": "circle","cx": 12, "cy": 12, "r": 2.5, "stroke_width": 1.2},
-            # Web spokes
             {"type": "line",  "x1": 12, "y1": 3,  "x2": 12, "y2": 21, "stroke_width": 1.2},
             {"type": "line",  "x1": 3,  "y1": 12, "x2": 21, "y2": 12, "stroke_width": 1.2},
             {"type": "line",  "x1": 5.4,"y1": 5.4,"x2":18.6,"y2":18.6,"stroke_width": 1.2},
             {"type": "line",  "x1":18.6,"y1": 5.4,"x2": 5.4,"y2":18.6,"stroke_width": 1.2},
-            # Spider body
             {"type": "circle","cx": 12, "cy": 12, "r": 2, "fill": "accent", "stroke_color": "accent"},
-            # Legs
             {"type": "path",  "d": "M8 10 Q5 8 3 7", "stroke_color": "accent"},
             {"type": "path",  "d": "M8 12 Q5 12 3 12", "stroke_color": "accent"},
             {"type": "path",  "d": "M8 14 Q5 16 3 17", "stroke_color": "accent"},
@@ -924,9 +899,6 @@ ICON_DEFS = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SVG Builder
-# ─────────────────────────────────────────────────────────────────────────────
 
 class SVGIconGenerator:
     """
@@ -952,20 +924,16 @@ class SVGIconGenerator:
         self.padding = padding
         self.palette = THEMES[theme]
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        # sub-dirs per category
         self._categories: set[str] = set()
 
-    # ── Color resolution ──────────────────────────────────────────────────
 
     def _resolve_color(self, key: Optional[str]) -> str:
         if key is None:
             return self.palette["primary"]
         if key in self.palette:
             return self.palette[key]
-        # raw hex / named colour passed directly
         return key
 
-    # ── Element builders ──────────────────────────────────────────────────
 
     def _attrs(self, el: dict) -> dict:
         sw = el.get("stroke_width", self.DEFAULT_STROKE_WIDTH)
@@ -1008,7 +976,6 @@ class SVGIconGenerator:
             node.set(k, v)
         return node
 
-    # ── SVG document ──────────────────────────────────────────────────────
 
     def _build_svg(self, icon: dict) -> ET.Element:
         s = self.size
@@ -1021,7 +988,6 @@ class SVGIconGenerator:
             "aria-label": icon["desc"],
             "role": "img",
         })
-        # title for accessibility
         title = ET.SubElement(svg, "title")
         title.text = icon["desc"]
 
@@ -1033,7 +999,6 @@ class SVGIconGenerator:
         ET.indent(el, space="  ")
         return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(el, encoding="unicode")
 
-    # ── Public API ────────────────────────────────────────────────────────
 
     def generate_icon(self, icon: dict) -> Path:
         """Generate a single icon SVG file. Returns the output path."""
@@ -1163,9 +1128,6 @@ class SVGIconGenerator:
         return path
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Rewritten AssetGenerator (extends original, now handles icons too)
-# ─────────────────────────────────────────────────────────────────────────────
 
 class AssetGenerator:
     """
@@ -1182,7 +1144,6 @@ class AssetGenerator:
             raise FileNotFoundError(f"Mockup not found at {self.mockup_path}")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Mockup extraction (original behaviour preserved) ──────────────────
 
     def load_mockup(self):
         with open(self.mockup_path, "r", encoding="utf-8") as f:
@@ -1215,7 +1176,6 @@ class AssetGenerator:
         print(f"  ✓ QSS → {p}")
         return css
 
-    # ── Icon generation ───────────────────────────────────────────────────
 
     def generate_icons(
         self,
@@ -1235,9 +1195,6 @@ class AssetGenerator:
         return gen
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1251,13 +1208,11 @@ def main():
     args = parser.parse_args()
 
     if args.mockup:
-        # Full pipeline (mockup + icons)
         ag = AssetGenerator(mockup_path=args.mockup, output_dir=args.out)
         ag.generate_assets()
         ag.generate_qss()
         ag.generate_icons(theme=args.theme, size=args.size, sprite=args.sprite)
     else:
-        # Icons only
         gen = SVGIconGenerator(output_dir=args.out, size=args.size, theme=args.theme)
         print(f"[Spider Icons] Generating {len(ICON_DEFS)} icons → {args.out}/  (theme={args.theme}, size={args.size}px)\n")
         gen.generate_all()

@@ -12,25 +12,47 @@ from PyQt6.QtGui import QIcon, QPixmap
 from utils.icon_manager import icons
 from resources.icons.icons import Icons
 from config import settings as app_settings
+from utils.file_categorizer import FileCategorizer, DownloadPathManager
 
 class DownloadFileInfoDialog(QDialog):
-    def __init__(self, parent, url: str, filename: str, size_bytes: int, category: str = "General"):
+    def __init__(self, parent, url: str, filename: str, size_bytes: int, category: str = None):
         super().__init__(parent)
         self.url = url
         self.filename = filename
         self.size_bytes = size_bytes
-        self.category = category
+        self.selected_directory = ""
+        
+        if category is None:
+            detected_category = FileCategorizer.categorize_by_extension(filename)
+            category_map = {
+                "Programs": "Programs",
+                "Documents": "Documents",
+                "Compressed": "Compressed",
+                "Pictures": "Pictures",
+                "Video": "Video",
+                "Audio": "Music",
+                "Other": "General"
+            }
+            self.category = category_map.get(detected_category, "General")
+        else:
+            self.category = category
         
         self.setWindowTitle("Download File Info")
         self.setMinimumWidth(550)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog | 
+            Qt.WindowType.CustomizeWindowHint | 
+            Qt.WindowType.WindowTitleHint | 
+            Qt.WindowType.WindowStaysOnTopHint
+        )
         self._setup_ui()
+        self._load_remembered_directory()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(15, 15, 15, 15)
 
-        # URL Row
         url_layout = QHBoxLayout()
         url_layout.addWidget(QLabel("URL:"))
         self.url_edit = QLineEdit(self.url)
@@ -38,12 +60,12 @@ class DownloadFileInfoDialog(QDialog):
         url_layout.addWidget(self.url_edit)
         layout.addLayout(url_layout)
 
-        # Category Row
         cat_layout = QHBoxLayout()
         cat_layout.addWidget(QLabel("Category:"))
         self.cat_combo = QComboBox()
-        self.cat_combo.addItems(["General", "Compressed", "Documents", "Music", "Programs", "Video"])
+        self.cat_combo.addItems(["General", "Compressed", "Documents", "Music", "Pictures", "Programs", "Video"])
         self.cat_combo.setCurrentText(self.category)
+        self.cat_combo.currentTextChanged.connect(self._on_category_changed)
         cat_layout.addWidget(self.cat_combo, stretch=1)
         
         add_cat_btn = QPushButton()
@@ -51,7 +73,6 @@ class DownloadFileInfoDialog(QDialog):
         add_cat_btn.setFixedSize(24, 24)
         cat_layout.addWidget(add_cat_btn)
         
-        # Right Side Icon/Size
         info_side_layout = QVBoxLayout()
         self.type_icon = QLabel()
         self.type_icon.setFixedSize(48, 48)
@@ -69,7 +90,6 @@ class DownloadFileInfoDialog(QDialog):
         cat_main_layout.addLayout(info_side_layout)
         layout.addLayout(cat_main_layout)
 
-        # Save As Row
         save_layout = QHBoxLayout()
         save_layout.addWidget(QLabel("Save As:"))
         self.name_edit = QLineEdit(self.filename)
@@ -82,32 +102,28 @@ class DownloadFileInfoDialog(QDialog):
         save_layout.addWidget(browse_btn)
         layout.addLayout(save_layout)
 
-        # Remember checkbox
-        self.remember_cb = QCheckBox(f"Remember this path for \"{self.category}\" category")
+        self.remember_cb = QCheckBox(f"Remember this path for this category")
         layout.addWidget(self.remember_cb)
 
-        # Path display (grayed out label)
         self.path_display = QLabel(app_settings.get_download_directory())
         self.path_display.setStyleSheet("color: #8b949e; background: #161b22; padding: 5px; border-radius: 3px;")
         layout.addWidget(self.path_display)
 
-        # Description Row
         desc_layout = QHBoxLayout()
         desc_layout.addWidget(QLabel("Description:"))
         self.desc_edit = QLineEdit()
         desc_layout.addWidget(self.desc_edit)
         layout.addLayout(desc_layout)
 
-        # Bottom Buttons
         btn_layout = QHBoxLayout()
         self.later_btn = QPushButton("Download Later")
         self.start_btn = QPushButton("Start Download")
         self.start_btn.setObjectName("primaryButton")
         self.cancel_btn = QPushButton("Cancel")
         
-        self.start_btn.clicked.connect(self.accept)
+        self.start_btn.clicked.connect(self._on_start_download)
         self.cancel_btn.clicked.connect(self.reject)
-        self.later_btn.clicked.connect(lambda: self.done(2)) # Custom return code for "Later"
+        self.later_btn.clicked.connect(lambda: self.done(2))
 
         btn_layout.addWidget(self.later_btn)
         btn_layout.addStretch()
@@ -123,6 +139,7 @@ class DownloadFileInfoDialog(QDialog):
             "Compressed": Icons.FILE_ARCHIVE,
             "Programs": Icons.SETTINGS,
             "Documents": Icons.FILE,
+            "Pictures": Icons.FILE_IMAGE,
         }
         icon_enum = icon_map.get(cat, Icons.FILE)
         self.type_icon.setPixmap(icons.get_icon(icon_enum).pixmap(48, 48))
@@ -131,6 +148,77 @@ class DownloadFileInfoDialog(QDialog):
         d = QFileDialog.getExistingDirectory(self, "Select Folder", self.path_display.text())
         if d:
             self.path_display.setText(d)
+            self.selected_directory = d
+
+    def _load_remembered_directory(self):
+        """Load remembered directory for the current category, or use auto-categorized directory."""
+        remembered_dir = app_settings.get_remembered_directory(self.category)
+        if remembered_dir:
+            self.path_display.setText(remembered_dir)
+            self.selected_directory = remembered_dir
+            return
+        
+        if app_settings.get_auto_categorize_enabled():
+            category_to_file_category = {
+                "Programs": "Programs",
+                "Documents": "Documents",
+                "Compressed": "Compressed",
+                "General": "Other",
+                "Video": "Video",
+                "Music": "Audio",
+                "Pictures": "Pictures"
+            }
+            file_category = category_to_file_category.get(self.category, "Other")
+            
+            path_manager = DownloadPathManager(app_settings.get_download_directory())
+            categorized_path = str(path_manager.get_category_path(file_category))
+            self.path_display.setText(categorized_path)
+            self.selected_directory = categorized_path
+        else:
+            default_dir = app_settings.get_download_directory()
+            self.path_display.setText(default_dir)
+            self.selected_directory = default_dir
+
+    def _on_category_changed(self, new_category):
+        """Handle category change - load remembered directory for new category."""
+        self.category = new_category
+        
+        remembered_dir = app_settings.get_remembered_directory(new_category)
+        if remembered_dir:
+            self.path_display.setText(remembered_dir)
+            self.selected_directory = remembered_dir
+        else:
+            if app_settings.get_auto_categorize_enabled():
+                category_to_file_category = {
+                    "Programs": "Programs",
+                    "Documents": "Documents",
+                    "Compressed": "Compressed",
+                    "General": "Other",
+                    "Video": "Video",
+                    "Music": "Audio",
+                    "Pictures": "Pictures"
+                }
+                file_category = category_to_file_category.get(new_category, "Other")
+                
+                path_manager = DownloadPathManager(app_settings.get_download_directory())
+                categorized_path = str(path_manager.get_category_path(file_category))
+                self.path_display.setText(categorized_path)
+                self.selected_directory = categorized_path
+            else:
+                default_dir = app_settings.get_download_directory()
+                self.path_display.setText(default_dir)
+                self.selected_directory = default_dir
+        
+        self._update_icon()
+
+    def _on_start_download(self):
+        """Handle start download button - save remembered directory if checkbox is checked."""
+        if self.remember_cb.isChecked():
+            current_category = self.cat_combo.currentText()
+            current_path = self.path_display.text()
+            if current_path and os.path.exists(current_path):
+                app_settings.set_remembered_directory(current_category, current_path)
+        self.accept()
 
     def get_info(self):
         return {

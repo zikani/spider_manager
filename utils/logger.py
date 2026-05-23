@@ -47,7 +47,7 @@ def setup_logging(level: int = logging.INFO) -> None:
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(formatter)
     console.setLevel(level)
-    console._spider_tag = _HANDLER_TAG  # type: ignore[attr-defined]
+    console._spider_tag = _HANDLER_TAG
     root.addHandler(console)
 
     try:
@@ -61,7 +61,7 @@ def setup_logging(level: int = logging.INFO) -> None:
         )
         file_handler.setFormatter(formatter)
         file_handler.setLevel(level)
-        file_handler._spider_tag = _HANDLER_TAG  # type: ignore[attr-defined]
+        file_handler._spider_tag = _HANDLER_TAG
         root.addHandler(file_handler)
     except OSError as e:
         root.warning("Could not initialise log file: %s", e)

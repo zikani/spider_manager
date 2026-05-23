@@ -52,7 +52,6 @@ class SpeedLimiterDialog(QDialog):
         limit_kb = self.speed_spin.value() if enabled else 0
         app_settings.set_speed_limit_kb(limit_kb)
         
-        # Apply to engine immediately
         self._engine.speed_limiter.set_limit_bps(limit_kb * 1024)
         
         self.accept()

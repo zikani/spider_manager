@@ -1,0 +1,11 @@
+{
+  "name": "com.spidermanager.bridge",
+  "description": "Spider Manager Native Messaging Host",
+  "path": "c:\\Users\\goon\\Documents\\New folder (27)\\spider_manager\\extension\\host.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://eikhgepojebokcbcjgdecjgagekgjage/",
+    "chrome-extension://hlodigcdclpkhahckihhggoogofljjif/",
+    "chrome-extension://*"
+  ]
+}

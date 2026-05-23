@@ -10,7 +10,6 @@ import pytest
 from utils import file_utils, mime_detector, network_utils, url_parser
 
 
-# ---------------------------------------------------------------- file_utils
 
 
 class TestSanitizeFilename:
@@ -82,7 +81,6 @@ class TestDiskHelpers:
         assert "KiB" in file_utils.format_size(2048) or "B" in file_utils.format_size(2048)
 
 
-# -------------------------------------------------------------- mime_detector
 
 
 class TestMimeDetector:
@@ -124,14 +122,13 @@ class TestMimeDetector:
         assert mime_detector.extension_from_mime("") == ""
 
 
-# ---------------------------------------------------------------- url_parser
 
 
 class TestUrlParser:
     def test_is_valid_url_accepts_http_https(self):
         assert url_parser.is_valid_url("http://example.com/x")
         assert url_parser.is_valid_url("https://example.com/x")
-        assert url_parser.is_valid_url("example.com/x")  # auto-prefixed
+        assert url_parser.is_valid_url("example.com/x")
 
     def test_is_valid_url_rejects_unsupported_or_empty(self):
         assert not url_parser.is_valid_url("ftp://example.com/x")
@@ -170,7 +167,6 @@ class TestUrlParser:
         assert result.endswith(".zip")
 
 
-# ------------------------------------------------------------ network_utils
 
 
 class TestNetworkUtils:
@@ -214,7 +210,6 @@ class TestNetworkUtils:
         assert network_utils.is_reachable("", 443) is False
 
 
-# -------------------------------------------------------------------- logger
 
 
 class TestLogger:

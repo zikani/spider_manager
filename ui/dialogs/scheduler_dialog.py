@@ -28,17 +28,18 @@ class SchedulerDialog(QDialog):
 
         self.start_time = QTimeEdit()
         self.start_time.setDisplayFormat("HH:mm")
-        self.start_time.setTime(QTime.fromString(app_settings.get_scheduler_start(), "HH:mm"))
+        start_time_str = app_settings.get_scheduler_start()
+        self.start_time.setTime(QTime.fromString(start_time_str, "HH:mm") if start_time_str else QTime(9, 0))
         sched_layout.addRow("Start downloads at:", self.start_time)
 
         self.end_time = QTimeEdit()
         self.end_time.setDisplayFormat("HH:mm")
-        self.end_time.setTime(QTime.fromString(app_settings.get_scheduler_end(), "HH:mm"))
+        end_time_str = app_settings.get_scheduler_end()
+        self.end_time.setTime(QTime.fromString(end_time_str, "HH:mm") if end_time_str else QTime(21, 0))
         sched_layout.addRow("Stop downloads at:", self.end_time)
 
         layout.addWidget(sched_group)
 
-        # Options
         options_group = QGroupBox("Options")
         options_layout = QVBoxLayout(options_group)
         self.hang_up = QCheckBox("Hang up modem when done")
@@ -51,7 +52,6 @@ class SchedulerDialog(QDialog):
 
         layout.addStretch()
 
-        # Buttons
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         cancel_btn = QPushButton("Cancel")

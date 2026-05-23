@@ -16,7 +16,7 @@ def test_unlimited_skips_sleep():
 
 
 def test_cap_adds_delay():
-    lim = SpeedLimiter(100_000)  # 100 KiB/s
+    lim = SpeedLimiter(100_000)
 
     async def _run():
         t0 = time.perf_counter()

@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 from utils.icon_manager import icons
 from resources.icons.icons import Icons
 
-# Map UI states to SVG icons
 STATE_SVG = {
     "dl": Icons.PLAY,
     "ok": Icons.STATUS_COMPLETE,
@@ -21,12 +20,10 @@ STATE_SVG = {
 class ProgressDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         painter.save()
-        # Get progress value
-        progress = index.data(Qt.ItemDataRole.DisplayRole)
+        progress = index.data(Qt.ItemDataRole.UserRole)
         if progress is None or not isinstance(progress, (int, float)):
             progress = 0
         state_row = index.siblingAtColumn(0).data(Qt.ItemDataRole.DisplayRole) or "?"
-        # Map state to row icon to infer state
         state = "dl"
         if state_row in ["✓"]:
             state = "ok"
@@ -39,7 +36,6 @@ class ProgressDelegate(QStyledItemDelegate):
         elif state_row in ["✕"]:
             state = "ca"
 
-        # Draw background
         bg_rect = option.rect.adjusted(2, 5, -2, -5)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#21262d"))
@@ -60,7 +56,6 @@ class ProgressDelegate(QStyledItemDelegate):
             gradient.setColorAt(1, QColor("#58a6ff"))
             fill_color = QBrush(gradient)
 
-        # Draw fill
         fill_width = bg_rect.width() * progress / 100
         if fill_width > 0:
             fill_rect = QRect(bg_rect)
@@ -68,7 +63,6 @@ class ProgressDelegate(QStyledItemDelegate):
             painter.setBrush(fill_color)
             painter.drawRoundedRect(fill_rect, 5, 5)
 
-        # Draw State Icon
         icon_enum = STATE_SVG.get(state)
         if icon_enum:
             icon = icons.get_icon(icon_enum)
@@ -78,7 +72,6 @@ class ProgressDelegate(QStyledItemDelegate):
             icon_rect = QRect(icon_x, icon_y, icon_size, icon_size)
             icon.paint(painter, icon_rect)
 
-        # Text
         if state == "er":
             text = "Error"
         elif state == "ca":
@@ -91,7 +84,6 @@ class ProgressDelegate(QStyledItemDelegate):
             if state == "er"
             else QColor("#ffffff") if progress > 50 else QColor("#8b949e")
         )
-        # Offset text to not overlap icon
         text_rect = option.rect.adjusted(20, 0, 0, 0)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 

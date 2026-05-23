@@ -34,9 +34,8 @@ def load_queue(queue_manager):
             queue_manager._queue.append(dict_to_task(task_dict))
             
         for task_dict in data.get("active", []):
-            # Active tasks are loaded into the queue as paused
             task = dict_to_task(task_dict)
-            task.state = "ps" # PAUSED
+            task.state = "ps"
             queue_manager._queue.append(task)
             
         for task_dict in data.get("completed", []):

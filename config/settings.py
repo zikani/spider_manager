@@ -53,7 +53,6 @@ def set_max_concurrent(n: int) -> None:
     _settings().setValue("max_concurrent", max(1, min(10, n)))
 
 
-# Global speed limit (kilobytes/sec, 0 = unlimited)
 def get_speed_limit_kb() -> int:
     s = _settings()
     v = int(s.value("speed_limit_kb", 0))
@@ -73,21 +72,19 @@ def set_scheduler_enabled(enabled: bool) -> None:
 
 
 def get_scheduler_start() -> str:
-    v = _settings().value("scheduler_start", "09:00", type=str)
-    return v if v else "09:00"
+    return _settings().value("scheduler_start", "", type=str) or ""
 
 
 def set_scheduler_start(value: str) -> None:
-    _settings().setValue("scheduler_start", value or "09:00")
+    _settings().setValue("scheduler_start", value or "")
 
 
 def get_scheduler_end() -> str:
-    v = _settings().value("scheduler_end", "21:00", type=str)
-    return v if v else "21:00"
+    return _settings().value("scheduler_end", "", type=str) or ""
 
 
 def set_scheduler_end(value: str) -> None:
-    _settings().setValue("scheduler_end", value or "21:00")
+    _settings().setValue("scheduler_end", value or "")
 
 
 def get_clipboard_monitor() -> bool:
@@ -108,7 +105,6 @@ def set_ui_theme(theme: str) -> None:
     _settings().setValue("ui_theme", t if t in ("dark", "light") else "dark")
 
 
-# New settings for IDM-like features
 def get_launch_on_startup() -> bool:
     return bool(_settings().value("launch_on_startup", False))
 
@@ -209,3 +205,151 @@ def get_proxy_password() -> str:
 
 def set_proxy_password(password: str) -> None:
     _settings().setValue("proxy_password", password or "")
+
+
+def get_auto_categorize_enabled() -> bool:
+    return bool(_settings().value("auto_categorize_enabled", True))
+
+
+def set_auto_categorize_enabled(enabled: bool) -> None:
+    _settings().setValue("auto_categorize_enabled", bool(enabled))
+
+
+def get_category_directory(category: str) -> str:
+    """Get directory for a specific file category."""
+    base_dir = get_download_directory()
+    category_dir = _settings().value(f"category_dir_{category}", "", type=str)
+    if category_dir and Path(category_dir).exists():
+        return category_dir
+    return str(Path(base_dir) / category)
+
+
+def set_category_directory(category: str, path: str) -> None:
+    """Set directory for a specific file category."""
+    _settings().setValue(f"category_dir_{category}", path or "")
+
+
+def get_temp_cleanup_enabled() -> bool:
+    return bool(_settings().value("temp_cleanup_enabled", True))
+
+
+def set_temp_cleanup_enabled(enabled: bool) -> None:
+    _settings().setValue("temp_cleanup_enabled", bool(enabled))
+
+
+def get_temp_cleanup_hours() -> int:
+    try:
+        hours = int(_settings().value("temp_cleanup_hours", 24))
+    except (TypeError, ValueError):
+        hours = 24
+    return max(1, min(168, hours))
+
+
+def set_temp_cleanup_hours(hours: int) -> None:
+    try:
+        h = int(hours)
+    except (TypeError, ValueError):
+        h = 24
+    _settings().setValue("temp_cleanup_hours", max(1, min(168, h)))
+
+
+def get_remembered_directory(category: str) -> str:
+    """Get the remembered directory for a specific category."""
+    remembered_dir = _settings().value(f"remembered_dir_{category}", "", type=str)
+    if remembered_dir and Path(remembered_dir).exists():
+        return remembered_dir
+    return ""
+
+
+def set_remembered_directory(category: str, path: str) -> None:
+    """Set the remembered directory for a specific category."""
+    if path and Path(path).exists():
+        _settings().setValue(f"remembered_dir_{category}", path)
+    else:
+        _settings().setValue(f"remembered_dir_{category}", "")
+
+
+MAX_RECENT_FILES = 20
+
+
+def get_recent_files() -> list[str]:
+    """Get list of recent file paths."""
+    s = _settings()
+    recent = s.value("recent_files", [], type=list)
+    if not isinstance(recent, list):
+        return []
+    existing_files = [f for f in recent if Path(f).exists()]
+    if len(existing_files) != len(recent):
+        set_recent_files(existing_files)
+    return existing_files
+
+
+def set_recent_files(files: list[str]) -> None:
+    """Set list of recent file paths."""
+    _settings().setValue("recent_files", files[:MAX_RECENT_FILES])
+
+
+def add_recent_file(file_path: str) -> None:
+    """Add a file to the recent files list."""
+    if not file_path or not Path(file_path).exists():
+        return
+    
+    recent = get_recent_files()
+    if file_path in recent:
+        recent.remove(file_path)
+    recent.insert(0, file_path)
+    recent = recent[:MAX_RECENT_FILES]
+    set_recent_files(recent)
+
+
+def clear_recent_files_settings() -> None:
+    """Clear all recent files from settings."""
+    set_recent_files([])
+
+
+def get_sound_enabled(event: str) -> bool:
+    """Check if sound is enabled for a specific event."""
+    return bool(_settings().value(f"sound_enabled_{event}", True))
+
+
+def set_sound_enabled(event: str, enabled: bool) -> None:
+    """Enable or disable sound for a specific event."""
+    _settings().setValue(f"sound_enabled_{event}", bool(enabled))
+
+
+def get_sound_path(event: str) -> str:
+    """Get the sound file path for a specific event."""
+    return _settings().value(f"sound_path_{event}", "", type=str) or ""
+
+
+def set_sound_path(event: str, path: str) -> None:
+    """Set the sound file path for a specific event."""
+    _settings().setValue(f"sound_path_{event}", path or "")
+
+
+def get_master_volume() -> float:
+    """Get master volume (0.0 to 1.0)."""
+    try:
+        vol = float(_settings().value("master_volume", 0.7))
+    except (TypeError, ValueError):
+        vol = 0.7
+    return max(0.0, min(1.0, vol))
+
+
+def set_master_volume(volume: float) -> None:
+    """Set master volume (0.0 to 1.0)."""
+    try:
+        v = float(volume)
+    except (TypeError, ValueError):
+        v = 0.7
+    _settings().setValue("master_volume", max(0.0, min(1.0, v)))
+
+
+def get_sound_notifications_enabled() -> bool:
+    """Check if sound notifications are globally enabled."""
+    return bool(_settings().value("sound_notifications_enabled", True))
+
+
+def set_sound_notifications_enabled(enabled: bool) -> None:
+    """Enable or disable sound notifications globally."""
+    _settings().setValue("sound_notifications_enabled", bool(enabled))
