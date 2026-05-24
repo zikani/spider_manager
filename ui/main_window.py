@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QTabBar,
     QLabel,
-    QMenu,
 )
 from utils.icon_manager import icons
 from resources.icons.icons import Icons
@@ -22,18 +21,9 @@ from resources.icons.icons import Icons
 from qasync import asyncSlot
 
 from config import settings as app_settings
-from config.constants import DownloadState, APP_NAME, APP_VERSION
 from core.download_engine import DownloadEngine
 from core.queue_manager import QueueManager
 from ui.dialogs.about import AboutDialog
-from ui.dialogs.help_dialog import HelpDialog
-from ui.dialogs.documentation_dialog import DocumentationDialog
-from ui.dialogs.tutorial_dialog import TutorialDialog
-from ui.dialogs.check_updates_dialog import CheckUpdatesDialog
-from ui.dialogs.report_issue_dialog import ReportIssueDialog
-from ui.dialogs.send_feedback_dialog import SendFeedbackDialog
-from ui.dialogs.license_dialog import LicenseDialog
-from ui.dialogs.changelog_dialog import ChangelogDialog
 from ui.dialogs.download_file_info import DownloadFileInfoDialog
 from ui.dialogs.download_progress import DownloadProgressDialog
 from ui.dialogs.batch_download import BatchDownloadDialog
@@ -64,7 +54,7 @@ class SpiderMainWindow(QMainWindow):
         self._queue = queue
         self._bridge = bridge
 
-        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
+        self.setWindowTitle("Spider Manager")
         self.setWindowIcon(icons.get_icon(Icons.SPIDER_LOGO))
         self.resize(1000, 700)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -83,13 +73,10 @@ class SpiderMainWindow(QMainWindow):
 
         self._bridge.tasks_changed.connect(self._on_tasks_changed)
         self._bridge.stats_changed.connect(self._refresh_stats)
-        self._bridge.pause_resume_requested.connect(self._on_pause_resume_requested)
 
         self._clipboard_monitor = ClipboardMonitor(self)
         self._clipboard_monitor.url_detected.connect(self._on_clipboard_url)
         self._sync_clipboard_monitor()
-        
-        self._folder_opening = False
 
     def apply_saved_preferences(self) -> None:
         apply_theme_to_window(self)
@@ -114,6 +101,7 @@ class SpiderMainWindow(QMainWindow):
         title_bar_layout = QHBoxLayout(title_bar)
         title_bar_layout.setContentsMargins(14, 0, 14, 0)
 
+        # Application icon on the left
         self.app_icon = QLabel()
         self.app_icon.setFixedSize(20, 20)
         self.app_icon.setPixmap(icons.get_icon(Icons.SPIDER_LOGO).pixmap(20, 20))
@@ -121,74 +109,71 @@ class SpiderMainWindow(QMainWindow):
         title_bar_layout.addWidget(self.app_icon)
         title_bar_layout.addSpacing(8)
 
-        self.title_label = QLabel(f"{APP_NAME} v{APP_VERSION}")
+        # Title label in the center with dynamic context
+        self.title_label = QLabel("Spider Manager")
         self.title_label.setObjectName("titleBarTitle")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_bar_layout.addWidget(self.title_label, stretch=1)
 
+        # Window state indicator
         self.state_indicator = QLabel()
         self.state_indicator.setFixedSize(16, 16)
         self.state_indicator.setStyleSheet("""
             QLabel {
                 background: transparent;
-                border: 1px solid
+                border: 1px solid #30363d;
                 border-radius: 2px;
             }
         """)
         title_bar_layout.addWidget(self.state_indicator)
         title_bar_layout.addSpacing(8)
 
+        # Window controls on the right side (Windows style)
         controls_layout = QHBoxLayout()
-        controls_layout.setSpacing(8)
+        controls_layout.setSpacing(8)  # Add spacing between buttons
         
-        self.minimize_btn = QLabel()
-        self.minimize_btn.setFixedSize(16, 16)
-        self.minimize_btn.setPixmap(icons.get_icon(Icons.MINIMIZE).pixmap(16, 16))
-        self.minimize_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Minimize button
+        self.minimize_btn = QWidget()
+        self.minimize_btn.setFixedSize(12, 12)
         self.minimize_btn.setStyleSheet("""
-            QLabel {
-                background:
-                border-radius: 8px;
-                padding: 2px;
+            QWidget {
+                background: #febc2e;
+                border-radius: 6px;
             }
-            QLabel:hover {
-                background:
+            QWidget:hover {
+                background: #f7d39c;
             }
         """)
         self.minimize_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.minimize_btn.mousePressEvent = self.minimize_window
         controls_layout.addWidget(self.minimize_btn)
         
-        self.maximize_btn = QLabel()
-        self.maximize_btn.setFixedSize(16, 16)
-        self.maximize_btn.setPixmap(icons.get_icon(Icons.FULLSCREEN).pixmap(16, 16))
-        self.maximize_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Maximize/Restore button
+        self.maximize_btn = QWidget()
+        self.maximize_btn.setFixedSize(12, 12)
         self.maximize_btn.setStyleSheet("""
-            QLabel {
-                background:
-                border-radius: 8px;
-                padding: 2px;
+            QWidget {
+                background: #28c840;
+                border-radius: 6px;
             }
-            QLabel:hover {
-                background:
+            QWidget:hover {
+                background: #6dd47d;
             }
         """)
         self.maximize_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.maximize_btn.mousePressEvent = self.toggle_maximize
         controls_layout.addWidget(self.maximize_btn)
         
-        self.close_btn = QLabel()
-        self.close_btn.setFixedSize(16, 16)
-        self.close_btn.setPixmap(icons.get_icon(Icons.STOP).pixmap(16, 16))
-        self.close_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Close button
+        self.close_btn = QWidget()
+        self.close_btn.setFixedSize(12, 12)
         self.close_btn.setStyleSheet("""
-            QLabel {
-                background:
-                border-radius: 8px;
-                padding: 2px;
+            QWidget {
+                background: #ff5f57;
+                border-radius: 6px;
             }
-            QLabel:hover {
-                background:
+            QWidget:hover {
+                background: #ff8b86;
             }
         """)
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -229,7 +214,6 @@ class SpiderMainWindow(QMainWindow):
         content_layout.addWidget(self.tab_bar)
 
         self.download_table = DownloadTable(self._queue, self._bridge)
-        self.download_table.set_parent_window(self)
         content_layout.addWidget(self.download_table, stretch=1)
 
         self.speed_graph = SpeedGraph()
@@ -248,6 +232,7 @@ class SpiderMainWindow(QMainWindow):
         apply_theme_to_window(self)
 
     def _wire_menus(self):
+        # File Menu
         file_menu = self._menu_bar.addMenu("File")
         
         act_add_url = QAction(icons.get_icon(Icons.ADD), "Add URL...", self)
@@ -274,6 +259,7 @@ class SpiderMainWindow(QMainWindow):
         
         file_menu.addSeparator()
         
+        # Recent Files submenu
         recent_menu = file_menu.addMenu(icons.get_icon(Icons.HISTORY), "Recent Files")
         self._update_recent_files(recent_menu)
         
@@ -291,6 +277,7 @@ class SpiderMainWindow(QMainWindow):
         act_quit.triggered.connect(self.close)
         file_menu.addAction(act_quit)
 
+        # Edit Menu
         edit_menu = self._menu_bar.addMenu("Edit")
         
         act_select_all = QAction(icons.get_icon(Icons.SELECT_ALL), "Select All", self)
@@ -315,6 +302,7 @@ class SpiderMainWindow(QMainWindow):
         act_clear_search.triggered.connect(self._clear_search)
         edit_menu.addAction(act_clear_search)
 
+        # View Menu
         view_menu = self._menu_bar.addMenu("View")
         
         act_prefs = QAction(icons.get_icon(Icons.SETTINGS), "Preferences...", self)
@@ -364,6 +352,7 @@ class SpiderMainWindow(QMainWindow):
         act_theme.triggered.connect(self._switch_theme)
         view_menu.addAction(act_theme)
 
+        # Downloads Menu
         downloads_menu = self._menu_bar.addMenu("Downloads")
         
         act_start = QAction(icons.get_icon(Icons.PLAY), "Start Selected", self)
@@ -420,6 +409,7 @@ class SpiderMainWindow(QMainWindow):
         act_clear_all.triggered.connect(self._clear_all)
         downloads_menu.addAction(act_clear_all)
 
+        # Queue Menu
         queue_menu = self._menu_bar.addMenu("Queue")
         
         act_move_top = QAction(icons.get_icon(Icons.SKIP), "Move to Top", self)
@@ -452,6 +442,7 @@ class SpiderMainWindow(QMainWindow):
         act_queue_shuffle.triggered.connect(self._shuffle_queue)
         queue_menu.addAction(act_queue_shuffle)
 
+        # Tools Menu
         tools_menu = self._menu_bar.addMenu("Tools")
         
         act_speed_limiter = QAction(icons.get_icon(Icons.SPEED_LIMIT), "Speed Limiter...", self)
@@ -491,14 +482,8 @@ class SpiderMainWindow(QMainWindow):
         act_stats.triggered.connect(self._show_statistics)
         tools_menu.addAction(act_stats)
 
+        # Help Menu
         help_menu = self._menu_bar.addMenu("Help")
-        
-        act_help = QAction(icons.get_icon(Icons.INFO), "User Guide...", self)
-        act_help.setShortcut("F1")
-        act_help.triggered.connect(self.show_help)
-        help_menu.addAction(act_help)
-        
-        help_menu.addSeparator()
         
         act_about = QAction(icons.get_icon(Icons.INFO), "About Spider Manager", self)
         act_about.triggered.connect(self.show_about)
@@ -507,6 +492,7 @@ class SpiderMainWindow(QMainWindow):
         help_menu.addSeparator()
         
         act_docs = QAction(icons.get_icon(Icons.NOTES), "Documentation", self)
+        act_docs.setShortcut("F1")
         act_docs.triggered.connect(self._open_docs)
         help_menu.addAction(act_docs)
         
@@ -538,6 +524,7 @@ class SpiderMainWindow(QMainWindow):
         act_changelog.triggered.connect(self._show_changelog)
         help_menu.addAction(act_changelog)
         
+        # Store menu actions for state management
         self._menu_actions = {
             'start_selected': act_start,
             'pause_selected': act_pause,
@@ -549,23 +536,25 @@ class SpiderMainWindow(QMainWindow):
             'move_bottom': act_move_bottom,
         }
         
+        # Setup context menus
         self._setup_context_menus()
         
+        # Update menu states
         self._update_menu_states()
 
     def _update_recent_files(self, recent_menu):
         """Update recent files submenu with recently downloaded files."""
         recent_menu.clear()
         
-        from config import settings as app_settings
-        recent_files = app_settings.get_recent_files()
+        # Get recent files from settings (mock for now)
+        recent_files = []  # TODO: Implement recent files tracking
         
         if not recent_files:
             no_recent = QAction("No recent files", self)
             no_recent.setEnabled(False)
             recent_menu.addAction(no_recent)
         else:
-            for file_path in recent_files[:10]:
+            for file_path in recent_files[:10]:  # Show max 10 recent files
                 action = QAction(file_path, self)
                 action.triggered.connect(lambda checked, path=file_path: self._open_recent_file(path))
                 recent_menu.addAction(action)
@@ -577,10 +566,15 @@ class SpiderMainWindow(QMainWindow):
 
     def _setup_context_menus(self):
         """Setup context menus for different UI areas."""
+        # Download table context menu
+        self.download_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.download_table.customContextMenuRequested.connect(self._show_download_context_menu)
         
+        # Category panel context menu
         self.category_panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.category_panel.customContextMenuRequested.connect(self._show_category_context_menu)
         
+        # Speed graph context menu
         self.speed_graph.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.speed_graph.customContextMenuRequested.connect(self._show_graph_context_menu)
 
@@ -588,6 +582,7 @@ class SpiderMainWindow(QMainWindow):
         """Show context menu for download table."""
         menu = QMenu(self)
         
+        # Add actions based on selection
         if self.download_table.selectedIndexes():
             menu.addAction(self._menu_actions['start_selected'])
             menu.addAction(self._menu_actions['pause_selected'])
@@ -641,6 +636,7 @@ class SpiderMainWindow(QMainWindow):
         """Update menu item states based on current selection and application state."""
         has_selection = bool(self.download_table.selectedIndexes())
         
+        # Update download-related menu items
         if hasattr(self, '_menu_actions'):
             self._menu_actions['start_selected'].setEnabled(has_selection)
             self._menu_actions['pause_selected'].setEnabled(has_selection)
@@ -659,14 +655,17 @@ class SpiderMainWindow(QMainWindow):
 
     def _clear_recent_files(self):
         """Clear recent files list."""
+        # TODO: Implement recent files clearing
         pass
 
     def _add_category(self):
         """Add a new category."""
+        # TODO: Implement add category dialog
         pass
 
     def _edit_category(self):
         """Edit selected category."""
+        # TODO: Implement edit category dialog
         pass
 
     def _clear_speed_graph(self):
@@ -675,6 +674,7 @@ class SpiderMainWindow(QMainWindow):
 
     def _export_speed_graph(self):
         """Export speed graph data."""
+        # TODO: Implement graph export
         pass
 
     def _setup_tray(self):
@@ -715,8 +715,8 @@ class SpiderMainWindow(QMainWindow):
         if self.isMaximized():
             self.state_indicator.setStyleSheet("""
                 QLabel {
-                    background:
-                    border: 1px solid
+                    background: #28c840;
+                    border: 1px solid #28c840;
                     border-radius: 2px;
                 }
             """)
@@ -725,7 +725,7 @@ class SpiderMainWindow(QMainWindow):
             self.state_indicator.setStyleSheet("""
                 QLabel {
                     background: transparent;
-                    border: 1px solid
+                    border: 1px solid #30363d;
                     border-radius: 2px;
                 }
             """)
@@ -759,36 +759,23 @@ class SpiderMainWindow(QMainWindow):
         return task.id if task else None
 
     def _open_add_download(self, initial_url: str = ""):
-        asyncio.create_task(self._handle_new_download(initial_url))
+        # Instead of old AddDownloadDialog, we use the new IDM-style dialogs
+        # 1. Probe the URL first
+        asyncio.ensure_future(self._handle_new_download(initial_url))
 
     async def _handle_new_download(self, url: str):
         if not url:
+            # Fallback to simple dialog if no URL
             from ui.dialogs.add_download import AddDownloadDialog
             AddDownloadDialog(self, self._engine, self._queue, self._bridge).exec()
             return
 
         try:
-            from plugins.yt_dlp_plugin import YtDlpPlugin
-            from plugins.browser_extension import ExtensionIPCHandler
-            
-            is_streaming = ExtensionIPCHandler.is_streaming_url(url) or YtDlpPlugin.is_streaming_url(url)
-            
-            plugin = YtDlpPlugin()
-            can_handle = plugin.can_handle(url)
-            is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
-            
-            if is_youtube or is_streaming or can_handle:
-                dlg = DownloadFileInfoDialog(self, url, "video_download", 0)
-                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
-                    info = dlg.get_info()
-                    from config.settings import get_download_directory
-                    await self._handle_streaming_download_with_queue(url, info["filename"], info["save_path"], "", {})
-                return
-            
             meta = await self._engine.probe(url)
             filename = meta.get("filename", "download")
             size = int(meta.get("size", 0))
             
+            # 2. Show File Info Dialog
             dlg = DownloadFileInfoDialog(self, url, filename, size)
             if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                 info = dlg.get_info()
@@ -799,25 +786,18 @@ class SpiderMainWindow(QMainWindow):
                     category=info["category"]
                 )
                 
-                task.total_size = size
-                
+                # Setup callbacks
                 def _pc(t): self._bridge.task_progress.emit(t.id)
-                def _sc(t): 
-                    if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                        asyncio.create_task(self._queue.handle_natural_pause_exit(t))
-                    self._bridge.tasks_changed.emit(); 
-                    self._bridge.stats_changed.emit()
+                def _sc(_t): self._bridge.tasks_changed.emit(); self._bridge.stats_changed.emit()
                 task.progress_callback = _pc
                 task.state_callback = _sc
                 
                 await self._queue.add(task)
                 self._bridge.tasks_changed.emit()
                 
-                prog_dlg = DownloadProgressDialog(self, task, self._bridge, self._queue)
-                
-                prog_dlg.speed_limit_changed.connect(self._engine.set_speed_limit)
-                
-                prog_dlg.show()
+                # 3. Show Progress Dialog for this specific task
+                prog_dlg = DownloadProgressDialog(self, task, self._bridge)
+                prog_dlg.show() # Non-blocking
                 
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
@@ -825,163 +805,6 @@ class SpiderMainWindow(QMainWindow):
 
     def _on_clipboard_url(self, url: str):
         self._open_add_download(initial_url=url)
-
-    def _on_intercepted_download(self, download_info: dict):
-        """Handle download intercepted from browser extension."""
-        url = download_info.get("url")
-        filename = download_info.get("filename")
-        referrer = download_info.get("referrer", "")
-        cookie_string = download_info.get("cookie_string")
-        save_path = download_info.get("save_path")
-        headers = download_info.get("headers", {})
-        is_streaming = download_info.get("is_streaming", False)
-        hls_info = download_info.get("hls_info")
-        video_info = download_info.get("video_info")
-        
-        asyncio.ensure_future(self._handle_intercepted_download(url, filename, save_path, referrer, headers, is_streaming, hls_info, video_info))
-
-    async def _handle_intercepted_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, is_streaming: bool = False, hls_info: dict = None, video_info: dict = None):
-        """Handle intercepted download by showing dialog and adding to queue."""
-        try:
-            from plugins.yt_dlp_plugin import YtDlpPlugin
-            plugin = YtDlpPlugin()
-            can_handle = plugin.can_handle(url)
-            is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
-            
-            if is_youtube or is_streaming or hls_info or video_info or can_handle:
-                dlg = DownloadFileInfoDialog(self, url, filename or "video_download", 0)
-                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
-                    info = dlg.get_info()
-                    await self._handle_streaming_download_with_queue(url, info["filename"], info["save_path"], referrer, headers, hls_info, video_info)
-                return
-            
-            await self._handle_direct_download(url, filename, save_path, referrer, headers)
-                
-        except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Error", f"Failed to handle intercepted download: {str(e)}")
-
-    async def _handle_direct_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict):
-        """Handle direct HTTP download by showing dialog and adding to queue."""
-        try:
-            meta = await self._engine.probe(url, headers=headers)
-            size = int(meta.get("size", 0))
-            
-            dlg = DownloadFileInfoDialog(self, url, filename, size)
-            if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
-                info = dlg.get_info()
-                task = self._queue.create_task(
-                    url=url,
-                    filename=info["filename"],
-                    save_path=info["save_path"],
-                    category=info["category"],
-                    referrer=referrer,
-                    headers=headers
-                )
-                
-                task.total_size = size
-                
-                def _pc(t): self._bridge.task_progress.emit(t.id)
-                def _sc(t): 
-                    if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                        asyncio.create_task(self._queue.handle_natural_pause_exit(t))
-                    self._bridge.tasks_changed.emit(); 
-                    self._bridge.stats_changed.emit()
-                task.progress_callback = _pc
-                task.state_callback = _sc
-                
-                await self._queue.add(task)
-                self._bridge.tasks_changed.emit()
-                
-                prog_dlg = DownloadProgressDialog(self, task, self._bridge, self._queue)
-                prog_dlg.speed_limit_changed.connect(self._engine.set_speed_limit)
-                prog_dlg.show()
-                
-        except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Error", f"Failed to handle direct download: {str(e)}")
-
-    async def _handle_streaming_download_with_queue(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, hls_info: dict = None, video_info: dict = None):
-        """Handle streaming download using yt-dlp through the download queue."""
-        try:
-            task = self._queue.create_task(
-                url=url,
-                filename=filename,
-                save_path=save_path,
-                category="Video",
-                referrer=referrer,
-                headers=headers
-            )
-            
-            task.download_mode = "ytdlp"
-            task.total_size = 0
-            
-            def _pc(t): self._bridge.task_progress.emit(t.id)
-            def _sc(t): 
-                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
-                self._bridge.tasks_changed.emit(); 
-                self._bridge.stats_changed.emit()
-            task.progress_callback = _pc
-            task.state_callback = _sc
-            
-            await self._queue.add(task)
-            self._bridge.tasks_changed.emit()
-            
-            prog_dlg = DownloadProgressDialog(self, task, self._bridge, self._queue)
-            prog_dlg.speed_limit_changed.connect(self._engine.set_speed_limit)
-            prog_dlg.show()
-                
-        except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Streaming Download Error", 
-                f"Failed to queue streaming download: {str(e)}")
-
-    async def _handle_streaming_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, hls_info: dict = None, video_info: dict = None):
-        """Handle streaming download using yt-dlp (legacy method - kept for fallback)."""
-        try:
-            import yt_dlp
-            import shutil
-            from config.settings import get_download_directory
-            
-            ffmpeg_available = shutil.which('ffmpeg') is not None
-            
-            output_template = f"{save_path}/%(title)s.%(ext)s"
-            
-            ydl_opts = {
-                'format': 'bestvideo+bestaudio/best' if ffmpeg_available else 'best',
-                'outtmpl': output_template,
-                'quiet': True,
-                'no_warnings': True,
-                'http_headers': headers,
-                'merge_output_format': 'mp4' if ffmpeg_available else None,
-                'ignoreerrors': True,
-            }
-            
-            if headers.get("Cookie"):
-                ydl_opts['cookiefile'] = None
-            
-            def run_ytdlp():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-            
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                await asyncio.get_event_loop().run_in_executor(executor, run_ytdlp)
-                
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Download Complete", "Streaming download completed successfully.")
-                
-        except ImportError:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Missing Dependency", 
-                "yt-dlp is not installed. Streaming downloads require yt-dlp.\n\nInstall it with: pip install yt-dlp")
-            await self._handle_direct_download(url, filename, save_path, referrer, headers)
-        except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Streaming Download Error", 
-                f"Failed to download streaming content: {str(e)}\n\nFalling back to direct download attempt.")
-            await self._handle_direct_download(url, filename, save_path, referrer, headers)
 
     def _open_batch(self):
         BatchDownloadDialog(self, self._engine, self._queue, self._bridge).exec()
@@ -1026,43 +849,24 @@ class SpiderMainWindow(QMainWindow):
             self._refresh_stats()
 
     def _open_selected_folder(self):
-        if self._folder_opening:
+        indexes = self.download_table.selectionModel().selectedRows()
+        if not indexes:
             return
-            
-        self._folder_opening = True
-        try:
-            indexes = self.download_table.selectionModel().selectedRows()
-            if not indexes:
-                return
-            row = indexes[0].row()
-            task = self.download_table.download_model.task_at_row(row)
-            if not task:
-                return
-            path = Path(task.save_path)
-            if path.is_dir():
-                QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
-        finally:
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(500, lambda: setattr(self, '_folder_opening', False))
+        row = indexes[0].row()
+        task = self.download_table.download_model.task_at_row(row)
+        if not task:
+            return
+        path = Path(task.save_path)
+        if path.is_dir():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     @pyqtSlot()
     def _on_tasks_changed(self):
         self.category_panel.update_counts()
         self._refresh_stats()
 
-    @pyqtSlot(str)
-    def _on_pause_resume_requested(self, task_id: str):
-        """Handle pause/resume requests from progress dialogs."""
-        import asyncio
-        task = self._queue._find(task_id)
-        if task:
-            from core.download_engine import DownloadState
-            if task.state == DownloadState.PAUSED:
-                asyncio.create_task(self._queue.resume(task_id))
-            elif task.state in [DownloadState.DOWNLOADING, DownloadState.QUEUED]:
-                asyncio.create_task(self._queue.pause(task_id))
-
     def _refresh_stats(self):
+        asyncio.ensure_future(self._queue.wake_dispatch())
         stats = self._queue.get_stats()
         dl_path = app_settings.get_download_directory()
         self.status_bar.update_stats(stats, dl_path)
@@ -1088,17 +892,11 @@ class SpiderMainWindow(QMainWindow):
             event.accept()
 
     def closeEvent(self, event):
-        active_downloads = len(self._queue._active)
-        
-        if active_downloads > 0:
-            self.hide()
-            event.ignore()
-            return
-        
         self._queue.save_queue()
         asyncio.ensure_future(self._engine.close())
         event.accept()
 
+    # Window control methods
     def minimize_window(self, event):
         self.showMinimized()
 
@@ -1122,60 +920,16 @@ class SpiderMainWindow(QMainWindow):
         """Show about dialog and update title context."""
         self._update_title_context("About")
         AboutDialog(self).exec()
-
-    def show_help(self):
-        """Show help dialog and update title context."""
-        self._update_title_context("Help")
-        HelpDialog(self).exec()
-        self._update_title_context()
-
-    def _open_docs(self):
-        """Show documentation dialog."""
-        self._update_title_context("Documentation")
-        DocumentationDialog(self).exec()
-        self._update_title_context()
-
-    def _open_tutorial(self):
-        """Show tutorial dialog."""
-        self._update_title_context("Tutorial")
-        TutorialDialog(self).exec()
-        self._update_title_context()
-
-    def _check_updates(self):
-        """Show check updates dialog."""
-        self._update_title_context("Check Updates")
-        CheckUpdatesDialog(self).exec()
-        self._update_title_context()
-
-    def _report_issue(self):
-        """Show report issue dialog."""
-        self._update_title_context("Report Issue")
-        ReportIssueDialog(self).exec()
-        self._update_title_context()
-
-    def _send_feedback(self):
-        """Show send feedback dialog."""
-        self._update_title_context("Send Feedback")
-        SendFeedbackDialog(self).exec()
-        self._update_title_context()
-
-    def _show_license(self):
-        """Show license dialog."""
-        self._update_title_context("License")
-        LicenseDialog(self).exec()
-        self._update_title_context()
-
-    def _show_changelog(self):
-        """Show changelog dialog."""
-        self._update_title_context("Changelog")
-        ChangelogDialog(self).exec()
         self._update_title_context()
 
 
+    # Menu action implementations
     def _import_downloads(self):
+        # TODO: Implement import from file functionality
         pass
 
     def _export_downloads(self):
+        # TODO: Implement export list functionality
         pass
 
     def _toggle_sidebar(self, checked):
@@ -1190,7 +944,12 @@ class SpiderMainWindow(QMainWindow):
         app_settings.set_ui_theme(new_theme)
         apply_theme_to_window(self)
 
-    
+    def _resume_all(self):
+        asyncio.ensure_future(self._queue.resume_all())
+
+    def _pause_all(self):
+        asyncio.ensure_future(self._queue.pause_all())
+
     def _clear_completed(self):
         self._queue.clear_by_state("completed")
         self._bridge.tasks_changed.emit()
@@ -1210,21 +969,21 @@ class SpiderMainWindow(QMainWindow):
         app_settings.set_clipboard_monitor(checked)
         self._sync_clipboard_monitor()
 
+    def _open_docs(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://spider-manager.com/docs"))
 
+    def _report_issue(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://spider-manager.com/issues"))
 
     def _open_download_folder(self):
-        if self._folder_opening:
-            return
-            
-        self._folder_opening = True
-        try:
-            from PyQt6.QtGui import QDesktopServices
-            from PyQt6.QtCore import QUrl
-            path = app_settings.get_download_directory()
-            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
-        finally:
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(500, lambda: setattr(self, '_folder_opening', False))
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        path = app_settings.get_download_directory()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _select_all_downloads(self):
         self.download_table.selectAll()
@@ -1285,6 +1044,7 @@ class SpiderMainWindow(QMainWindow):
             self._bridge.tasks_changed.emit()
 
     def _sort_queue(self):
+        # TODO: Implement sort dialog
         pass
 
     def _shuffle_queue(self):
@@ -1292,6 +1052,7 @@ class SpiderMainWindow(QMainWindow):
         self._bridge.tasks_changed.emit()
 
     def _open_browser_integration(self):
+        # TODO: Implement browser integration dialog
         pass
 
     def _force_check_urls(self):
@@ -1299,14 +1060,31 @@ class SpiderMainWindow(QMainWindow):
         self._bridge.tasks_changed.emit()
 
     def _cleanup_downloads(self):
+        # TODO: Implement cleanup dialog
         pass
 
     def _show_statistics(self):
+        # TODO: Implement statistics dialog
         pass
 
+    def _open_tutorial(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://spider-manager.com/tutorial"))
 
     def _check_updates(self):
+        # TODO: Implement update checker
         pass
 
+    def _send_feedback(self):
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://spider-manager.com/feedback"))
 
+    def _show_license(self):
+        # TODO: Implement license dialog
+        pass
 
+    def _show_changelog(self):
+        # TODO: Implement changelog dialog
+        pass
