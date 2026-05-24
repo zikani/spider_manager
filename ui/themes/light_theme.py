@@ -4,7 +4,7 @@ LIGHT_QSS = """
 QWidget {
     background-color: #ffffff;
     color: #1f2328;
-    font-family: "Segoe UI", "SF Pro Text", Ubuntu, sans-serif;
+    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
     font-size: 13px;
     border: none;
     outline: none;
@@ -109,7 +109,6 @@ QProgressBar {
     border-radius: 3px;
     height: 5px;
     text-align: center;
-    font-size: 0px;
 }
 QProgressBar::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,

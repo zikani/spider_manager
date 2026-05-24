@@ -91,12 +91,13 @@ class DownloadProgressDialog(QDialog):
         self.progress_bar.setValue(int(self.task.progress))
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                border: 1px solid
-                height: 25px; background:
+                border: 1px solid #30363d;
+                height: 25px;
+                background: #161b22;
             }
             QProgressBar::chunk {
                 background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0
+                    stop:0 #1f6feb, stop:1 #58a6ff);
             }
         """)
         status_layout.addWidget(self.progress_bar)

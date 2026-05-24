@@ -71,6 +71,7 @@ from config.constants import (
     RETRY_DELAY,
     DownloadState,
 )
+from core.protocol_handler import get_protocol_registry, register_default_handlers, UnsupportedProtocolError
 from core.speed_limiter import SpeedLimiter
 from utils.file_utils import sanitize_filename
 from utils.logger import get_logger
@@ -623,6 +624,10 @@ class DownloadEngine:
 
         self._active: dict[str, tuple[asyncio.Task, DownloadTask]] = {}
         self._session: Optional[aiohttp.ClientSession] = None
+        
+        # Initialize protocol registry
+        self._protocol_registry = get_protocol_registry()
+        register_default_handlers(self._protocol_registry)
 
 
     async def __aenter__(self):
@@ -630,6 +635,23 @@ class DownloadEngine:
 
     async def __aexit__(self, *_):
         await self.close()
+
+    def validate_protocol(self, url: str) -> bool:
+        """
+        Validate that the URL protocol is supported.
+        
+        Args:
+            url: The URL to validate
+            
+        Returns:
+            True if protocol is supported, False otherwise
+        """
+        protocol = self._protocol_registry.detect_protocol(url)
+        return self._protocol_registry.is_protocol_supported(protocol)
+
+    def get_supported_protocols(self) -> list[str]:
+        """Return list of supported protocols."""
+        return self._protocol_registry.get_supported_protocols()
 
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -660,6 +682,11 @@ class DownloadEngine:
         Returns dict with keys:
           size, filename, resumable, content_type, url, accepts_ranges
         """
+        # Validate protocol using protocol registry
+        if not self.validate_protocol(url):
+            protocol = self._protocol_registry.detect_protocol(url)
+            raise UnsupportedProtocolError(f"Protocol '{protocol}' is not supported")
+        
         session = await self._get_session()
         h       = dict(headers or {})
         proxy   = current_proxy()
