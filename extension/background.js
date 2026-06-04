@@ -35,6 +35,7 @@ const MEDIA_EXTENSIONS = new Set([
     ".ts",  ".flv", ".avi", ".mov",  ".wmv",  ".aac", ".ogg",
     ".opus",".flac",".wav", ".m4a",  ".m4v",  ".3gp", ".f4v",
     ".f4m", ".divx",".rm",  ".rmvb", ".vob",  ".ogv",
+    ".torrent",  // BitTorrent files
 ]);
 
 // Content-Type → stream type mapping
@@ -79,6 +80,12 @@ function isMediaUrl(url = "", contentType = "") {
     if (!url) return false;
     const urlLower = url.toLowerCase();
 
+    // FTP/FTPS URLs
+    if (urlLower.startsWith("ftp://") || urlLower.startsWith("ftps://")) return true;
+
+    // Magnet links
+    if (urlLower.startsWith("magnet:")) return true;
+
     // Blob URLs
     if (urlLower.startsWith("blob:")) return true;
 
@@ -111,6 +118,15 @@ function detectStreamType(url = "", contentType = "") {
 
     if (urlLower.startsWith("blob:")) return "blob";
 
+    // FTP/FTPS
+    if (urlLower.startsWith("ftp://") || urlLower.startsWith("ftps://")) return "ftp";
+
+    // Magnet links
+    if (urlLower.startsWith("magnet:")) return "magnet";
+
+    // Torrent files
+    if (urlLower.endsWith(".torrent")) return "torrent";
+
     // HLS
     if (urlLower.includes(".m3u8") || urlLower.includes(".m3u") ||
         urlLower.includes("/hls/")  || urlLower.includes("hls/stream") ||
@@ -132,6 +148,9 @@ function streamTypeToDownloadMode(streamType) {
         hds:    "stream_hls",
         smooth: "stream_hls",
         blob:   "blob",
+        ftp:    "direct",
+        magnet: "direct",
+        torrent: "direct",
     }[streamType] || "direct";
 }
 
@@ -769,6 +788,13 @@ chrome.action.onClicked.addListener(tab => {
             payload.videoInfo = ytInfo;
         }
         
+        // Detect FTP, magnet, and torrent URLs
+        const streamType = detectStreamType(tab.url);
+        if (streamType) {
+            payload.streamType = streamType;
+            payload.downloadMode = streamTypeToDownloadMode(streamType);
+        }
+        
         addToQueue(payload, "high");
     }
 });
@@ -819,6 +845,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         payload.streamType = "youtube";
         payload.downloadMode = "ytdlp";
         payload.videoInfo = ytInfo;
+    }
+    
+    // Detect FTP, magnet, and torrent URLs
+    const streamType = detectStreamType(url);
+    if (streamType) {
+        payload.streamType = streamType;
+        payload.downloadMode = streamTypeToDownloadMode(streamType);
     }
     
     addToQueue(payload, "high");

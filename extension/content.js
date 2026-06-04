@@ -43,9 +43,65 @@ function detectStreamType(url = "") {
     if (!url) return "";
     const u = url.toLowerCase();
     if (u.startsWith("blob:"))                                          return "blob";
+    if (u.startsWith("ftp://") || u.startsWith("ftps://"))              return "ftp";
+    if (u.startsWith("magnet:"))                                        return "magnet";
+    if (u.endsWith(".torrent"))                                         return "torrent";
     if (u.includes(".m3u8") || u.includes(".m3u") || u.includes("/hls/")) return "hls";
     if (u.includes(".mpd")  || u.includes("/dash/"))                    return "dash";
     return "";
+}
+
+// ─── FTP/Torrent link detection ───────────────────────────────────────────────
+function detectFtpAndTorrentLinks() {
+    /**
+     * Scan the page for FTP and torrent links and add download indicators.
+     * This runs periodically to catch dynamically added links.
+     */
+    const links = document.querySelectorAll('a[href]');
+    let foundCount = 0;
+    
+    links.forEach(link => {
+        const href = link.href;
+        if (!href) return;
+        
+        const streamType = detectStreamType(href);
+        if (streamType === 'ftp' || streamType === 'torrent' || streamType === 'magnet') {
+            // Skip if already marked
+            if (link.dataset.spiderMarked) return;
+            
+            link.dataset.spiderMarked = "true";
+            foundCount++;
+            
+            // Add visual indicator
+            const indicator = document.createElement('span');
+            indicator.className = 'spider-link-indicator';
+            indicator.setAttribute('data-stream-type', streamType);
+            indicator.innerHTML = ` [${streamType.toUpperCase()}]`;
+            indicator.style.cssText = `
+                font-size: 10px;
+                font-weight: 700;
+                padding: 1px 4px;
+                border-radius: 3px;
+                margin-left: 4px;
+                text-transform: uppercase;
+                ${streamType === 'ftp' ? 'background: #0ea5e9; color: white;' : ''}
+                ${streamType === 'torrent' ? 'background: #8b5cf6; color: white;' : ''}
+                ${streamType === 'magnet' ? 'background: #f59e0b; color: white;' : ''}
+            `;
+            
+            // Add click handler to intercept download
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                downloadUrl(href, window.location.href, streamType);
+            });
+            
+            link.appendChild(indicator);
+        }
+    });
+    
+    if (foundCount > 0) {
+        console.log(`[Spider] Detected ${foundCount} FTP/torrent/magnet links`);
+    }
 }
 
 // ─── MediaSource API patching (blob: → manifest URL mapping) ──────────────────
@@ -186,9 +242,22 @@ function sanitizeFilename(name) {
 }
 
 function getSmartFilename(url, streamType) {
-    const title = extractPageTitle() || pageTitle || "video";
+    const title = extractPageTitle() || pageTitle || "download";
     let ext = ".mp4";
-    if (!streamType || streamType === "direct") {
+    
+    if (streamType === "torrent") {
+        ext = ".torrent";
+    } else if (streamType === "magnet") {
+        ext = ".torrent";  // Magnet links save as .torrent
+    } else if (streamType === "ftp") {
+        // Try to guess extension from URL
+        if (/\.mp4(\?|$)/i.test(url))   ext = ".mp4";
+        else if (/\.mp3(\?|$)/i.test(url))   ext = ".mp3";
+        else if (/\.zip(\?|$)/i.test(url))   ext = ".zip";
+        else if (/\.rar(\?|$)/i.test(url))   ext = ".rar";
+        else if (/\.7z(\?|$)/i.test(url))    ext = ".7z";
+        else ext = ".bin";
+    } else if (!streamType || streamType === "direct") {
         if (/\.mp3(\?|$)/i.test(url))   ext = ".mp3";
         else if (/\.webm(\?|$)/i.test(url)) ext = ".webm";
         else if (/\.mkv(\?|$)/i.test(url))  ext = ".mkv";
@@ -568,6 +637,9 @@ function downloadUrl(streamUrl, originalUrl, streamType) {
             downloadMode: isYouTube ? "ytdlp" : (finalStreamType
                     ? (finalStreamType === "hls" ? "stream_hls"
                     : finalStreamType === "dash" ? "stream_dash"
+                    : finalStreamType === "ftp" ? "direct"
+                    : finalStreamType === "torrent" ? "direct"
+                    : finalStreamType === "magnet" ? "direct"
                     : "blob")
                     : "direct"),
         };
@@ -887,6 +959,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 // ─── Auto-detect on page load ─────────────────────────────────────────────────
 setTimeout(() => {
     if (document.querySelector("video")) detectVideos();
+    detectFtpAndTorrentLinks();
 }, 1000);
 
 // ─── MutationObserver — debounced ─────────────────────────────────────────────
@@ -895,6 +968,7 @@ const domObserver = new MutationObserver(() => {
     clearTimeout(mutationTimer);
     mutationTimer = setTimeout(() => {
         if (document.querySelector("video")) detectVideos();
+        detectFtpAndTorrentLinks();
     }, 400);
 });
 domObserver.observe(document.body || document.documentElement, {
