@@ -653,6 +653,8 @@ class PluginRegistry:
             ("plugins.hls_plugin",          "HLSPlugin"),
             ("plugins.dash_plugin",         "DASHPlugin"),
             ("plugins.browser_extension",   "BrowserExtensionPlugin"),
+            ("plugins.ftp_plugin",          "FTPPlugin"),
+            ("plugins.torrent_plugin",      "TorrentPlugin"),
         ]:
             mod_name, cls_name = cls_path
             try:

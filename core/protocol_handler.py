@@ -121,23 +121,28 @@ class ProtocolRegistry:
     def detect_protocol(self, url: str) -> str:
         """
         Detect protocol from URL.
-        
+
         Returns:
             Protocol scheme (e.g., 'http', 'https', 'ftp', 'torrent', 'magnet')
         """
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
-        
+
         # Handle magnet links (special case)
         if url.startswith("magnet:"):
             return "magnet"
-        
-        # Handle torrent files
+
+        # Check URL scheme first - this takes precedence over file extension
+        if scheme:
+            return scheme
+
+        # Only check for .torrent extension if there's no URL scheme
+        # This allows HTTP/HTTPS URLs to .torrent files to work correctly
         if url.endswith(".torrent"):
             return "torrent"
-        
-        # Default to scheme from URL
-        return scheme if scheme else "http"
+
+        # Default to http if no scheme
+        return "http"
 
     def get_handler_for_url(self, url: str) -> Optional[ProtocolHandler]:
         """

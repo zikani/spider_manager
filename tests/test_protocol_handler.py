@@ -79,9 +79,13 @@ class TestProtocolRegistry:
         assert registry.detect_protocol("magnet:?xt=urn:btih:...") == "magnet"
 
     def test_detect_protocol_torrent(self):
-        """Test protocol detection for torrent files."""
+        """Test protocol detection for torrent files without URL scheme."""
         registry = ProtocolRegistry()
-        assert registry.detect_protocol("http://example.com/file.torrent") == "torrent"
+        # Torrent files without URL scheme should be detected as torrent
+        assert registry.detect_protocol("file.torrent") == "torrent"
+        # Torrent files with HTTP/HTTPS scheme should use the scheme (not file extension)
+        assert registry.detect_protocol("http://example.com/file.torrent") == "http"
+        assert registry.detect_protocol("https://example.com/file.torrent") == "https"
 
     def test_detect_protocol_default(self):
         """Test protocol detection defaults to http."""

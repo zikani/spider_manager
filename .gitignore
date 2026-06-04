@@ -9,3 +9,4 @@ venv/
 *.part*
 *.log
 config/user_settings.json
+asset_generator.py

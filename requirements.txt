@@ -19,3 +19,5 @@ pytest-asyncio>=0.23.0
 pytest-qt>=4.3.0
 black>=23.12.0
 mypy>=1.8.0
+aioftp>=0.21.0
+libtorrent>=2.0.0
