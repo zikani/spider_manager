@@ -650,8 +650,6 @@ class PluginRegistry:
         """Instantiate and register all built-in plugins."""
         for cls_path in [
             ("plugins.yt_dlp_plugin",      "YtDlpPlugin"),
-            ("plugins.hls_plugin",          "HLSPlugin"),
-            ("plugins.dash_plugin",         "DASHPlugin"),
             ("plugins.browser_extension",   "BrowserExtensionPlugin"),
             ("plugins.ftp_plugin",          "FTPPlugin"),
             ("plugins.torrent_plugin",      "TorrentPlugin"),

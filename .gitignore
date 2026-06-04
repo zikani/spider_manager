@@ -10,3 +10,4 @@ venv/
 *.log
 config/user_settings.json
 asset_generator.py
+verify_integration.py

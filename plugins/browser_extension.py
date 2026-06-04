@@ -47,7 +47,17 @@ class BrowserExtensionPlugin(SpiderPlugin):
         return PluginCapability.NONE
 
     def can_handle(self, url: str) -> bool:
-        return False
+        """
+        Browser extension plugin handles all URL types for interception.
+        The actual processing is delegated to the appropriate plugin via the registry.
+        """
+        if not url:
+            return False
+        url_lower = url.lower()
+        return (
+            url_lower.startswith(('http://', 'https://', 'ftp://', 'ftps://', 'magnet:', 'torrent:')) or
+            url_lower.endswith('.torrent')
+        )
 
     async def process(self, url: str, ctx: PluginContext) -> PluginResult:
         raise PluginError("BrowserExtensionPlugin does not support direct processing.")
@@ -216,8 +226,15 @@ class ExtensionIPCHandler:
                         log.error(f"Blob URL without valid page URL fallback: {url}")
                         return
 
-                if not url or not isinstance(url, str) or not url.startswith(("http://", "https://")):
+                if not url or not isinstance(url, str):
                     log.error(f"Invalid URL received from extension: {url}")
+                    return
+                
+                # Accept HTTP, HTTPS, FTP, FTPS, magnet, and torrent URLs
+                url_lower = url.lower()
+                valid_schemes = ('http://', 'https://', 'ftp://', 'ftps://', 'magnet:', 'torrent:')
+                if not (url_lower.startswith(valid_schemes) or url_lower.endswith('.torrent')):
+                    log.error(f"Invalid URL scheme received from extension: {url}")
                     return
 
                 from utils.url_parser import safe_filename_from_url, is_valid_url
