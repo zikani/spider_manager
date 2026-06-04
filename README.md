@@ -8,6 +8,8 @@ A professional internet download manager built with Python 3.11+ and PyQt6. Insp
 - **Speed Limiting**: Global bandwidth control with real-time monitoring
 - **Browser Integration**: Chrome and Firefox extension support
 - **Video/Audio Support**: yt-dlp integration for YouTube, Vimeo, and other streaming sites
+- **FTP/FTPS Support**: Full FTP and FTPS protocol support with authentication and resume
+- **BitTorrent Support**: Magnet link and .torrent file support with peer management
 - **Scheduling**: Time-based download windows for off-peak downloading
 - **File Categorization**: Automatic organization by file type
 - **Sound Notifications**: Audio alerts for download events
@@ -41,6 +43,8 @@ python main.py
 - PyQt6 >= 6.6.0
 - qasync >= 0.27.0
 - aiohttp >= 3.9.0
+- aioftp >= 0.21.0 (for FTP/FTPS support)
+- libtorrent >= 2.0.0 (for BitTorrent support)
 - yt-dlp >= 2024.1.0
 - ffmpeg (for video/audio processing)
 
@@ -98,7 +102,9 @@ spider_manager/
 ├── plugins/                     # Plugin system
 │   ├── plugin_base.py           # Plugin base class
 │   ├── browser_extension.py     # Browser integration
-│   └── yt_dlp_plugin.py         # Video extraction
+│   ├── yt_dlp_plugin.py         # Video extraction
+│   ├── ftp_plugin.py            # FTP/FTPS protocol support
+│   └── torrent_plugin.py        # BitTorrent protocol support
 ├── utils/                       # Utilities
 │   ├── file_utils.py            # File operations
 │   ├── network_utils.py         # Network helpers
@@ -123,6 +129,8 @@ The download engine (`core/download_engine.py`) is the heart of the application.
 - **STREAM_DASH**: DASH streaming with ffmpeg integration
 - **YTDLP**: yt-dlp subprocess wrapper for video sites
 - **BLOB**: Blob URL fallback handling
+- **FTP**: FTP/FTPS protocol downloads via aioftp
+- **TORRENT**: BitTorrent downloads via libtorrent
 
 Key features:
 - Adaptive segment count based on file size
@@ -150,6 +158,8 @@ The plugin system (`plugins/plugin_base.py`) provides:
 - Standardized plugin interface
 - yt-dlp integration for video sites
 - Browser extension IPC handler
+- FTP/FTPS plugin with authentication and resume support
+- BitTorrent plugin with magnet link and peer management
 
 ## Contributing
 

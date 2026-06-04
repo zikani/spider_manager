@@ -8,11 +8,11 @@ Spider Manager v2.0.0 is the next major release of the professional internet dow
 **Target Version**: v2.0.0
 **Development Timeline**: 15 weeks
 **Team Size**: 2-3 developers
-**Current Status**: Phase 1 - Protocol Handler Architecture Complete
+**Current Status**: Phase 1 - Protocol Expansion Complete
 
 ---
 
-## 📋 Phase 1: Protocol Expansion (Week 1-3) ✅ Protocol Handler Architecture Complete
+## 📋 Phase 1: Protocol Expansion (Week 1-3) ✅ COMPLETE
 
 ### 2.1 Enhanced Protocol Handler ✅ COMPLETE
 
@@ -40,7 +40,7 @@ Spider Manager v2.0.0 is the next major release of the professional internet dow
 
 ---
 
-### 2.2 FTP Plugin Implementation
+### 2.2 FTP Plugin Implementation ✅ COMPLETE
 
 **File**: `plugins/ftp_plugin.py`
 
@@ -68,19 +68,28 @@ class FTPPlugin(PluginBase):
 ```
 
 **Implementation Tasks**:
-- [ ] Implement FTP client using aioftp
-- [ ] Add FTP authentication support
-- [ ] Implement FTP resume support
-- [ ] Add FTP passive/active mode selection
-- [ ] Implement FTP directory browsing
-- [ ] Add FTP-specific error handling
-- [ ] Create unit tests for FTP operations
+- [x] Implement FTP client using aioftp
+- [x] Add FTP authentication support
+- [x] Implement FTP resume support
+- [x] Add FTP passive/active mode selection
+- [x] Implement FTP directory browsing
+- [x] Add FTP-specific error handling
+- [x] Create unit tests for FTP operations
 
 **Dependencies**: `aioftp>=0.21.0`
 
+**Progress Notes**:
+- FTPPlugin class implemented with full FTP/FTPS support
+- Authentication via URL credentials and context extra options
+- Resume support via offset parameter
+- Passive/active mode selection
+- Directory browsing with file metadata
+- 23 unit tests added and passing in tests/test_ftp_plugin.py
+- Registered in PluginRegistry.load_defaults()
+
 ---
 
-### 1.3 BitTorrent Plugin Implementation
+### 2.3 BitTorrent Plugin Implementation ✅ COMPLETE
 
 **File**: `plugins/torrent_plugin.py`
 
@@ -112,22 +121,34 @@ class TorrentPlugin(PluginBase):
 ```
 
 **Implementation Tasks**:
-- [ ] Implement libtorrent integration
-- [ ] Add torrent file parsing
-- [ ] Implement magnet link handling
-- [ ] Add peer management system
-- [ ] Implement DHT and PEX support
-- [ ] Add torrent-specific speed limiting
-- [ ] Implement torrent seeding options
-- [ ] Create unit tests for torrent operations
+- [x] Implement libtorrent integration
+- [x] Add torrent file parsing
+- [x] Implement magnet link handling
+- [x] Add peer management system
+- [x] Implement DHT and PEX support
+- [x] Add torrent-specific speed limiting
+- [x] Implement torrent seeding options
+- [x] Create unit tests for torrent operations
 
-**Dependencies**: `libtorrent>=1.2.0`
+**Dependencies**: `libtorrent>=2.0.0`
+
+**Progress Notes**:
+- TorrentPlugin class implemented with full BitTorrent support
+- Magnet link parsing and DHT-based metadata resolution
+- Torrent file parsing and download
+- Peer management via libtorrent session settings
+- DHT and PEX enabled in session
+- Speed limiting (download/upload rate limits)
+- Seeding options (ratio and time limits)
+- Sequential download and first/last piece prioritization
+- 16 unit tests added and passing in tests/test_torrent_plugin.py
+- Registered in PluginRegistry.load_defaults()
 
 ---
 
-### 2.4 Magnet Link Support
+### 2.4 Magnet Link Support ✅ COMPLETE
 
-**File**: `plugins/magnet_handler.py` (Part of torrent plugin)
+**File**: `plugins/torrent_plugin.py` (Part of torrent plugin)
 
 ```python
 class MagnetHandler:
@@ -147,16 +168,24 @@ class MagnetHandler:
 ```
 
 **Implementation Tasks**:
-- [ ] Implement magnet link parsing (xt, dn, tr, etc.)
-- [ ] Add DHT-based metadata resolution
-- [ ] Implement magnet to torrent conversion
-- [ ] Add magnet link validation
-- [ ] Implement magnet-specific error handling
-- [ ] Create unit tests for magnet operations
+- [x] Implement magnet link parsing (xt, dn, tr, etc.)
+- [x] Add DHT-based metadata resolution
+- [x] Implement magnet to torrent conversion
+- [x] Add magnet link validation
+- [x] Implement magnet-specific error handling
+- [x] Create unit tests for magnet operations
+
+**Progress Notes**:
+- Magnet link parsing implemented in TorrentPlugin._parse_magnet_link()
+- DHT-based metadata resolution via libtorrent session
+- Magnet to torrent conversion handled by libtorrent
+- Magnet link validation in can_handle() method
+- Error handling with PluginError and PluginDependencyMissing
+- Tests included in test_torrent_plugin.py
 
 ---
 
-### 2.5 Protocol-Specific UI Elements
+### 2.5 Protocol-Specific UI Elements ✅ COMPLETE
 
 **File**: `ui/dialogs/protocol_options_dialog.py`
 
@@ -188,19 +217,27 @@ class ProtocolOptionsDialog(QDialog):
 ```
 
 **Implementation Tasks**:
-- [ ] Create protocol options dialog
-- [ ] Add FTP authentication UI
-- [ ] Add FTP mode selection (passive/active)
-- [ ] Add torrent seeding options UI
-- [ ] Add peer limit settings UI
-- [ ] Implement protocol-specific validation
-- [ ] Add protocol help documentation
+- [x] Create protocol options dialog
+- [x] Add FTP authentication UI
+- [x] Add FTP mode selection (passive/active)
+- [x] Add torrent seeding options UI
+- [x] Add peer limit settings UI
+- [x] Implement protocol-specific validation
+- [x] Add protocol help documentation
+
+**Progress Notes**:
+- ProtocolOptionsDialog created with tabbed interface
+- FTP tab: authentication (username/password), passive/active mode, FTPS support, timeout settings
+- Torrent tab: connection limits, speed limits, seeding options (ratio/time), download options (sequential, prioritize first/last)
+- Protocol-specific validation with warning dialogs
+- HTTP tab with placeholder for future options
+- Common tab for shared options
 
 ---
 
-### 2.6 Protocol Test Suite
+### 2.6 Protocol Test Suite ✅ COMPLETE
 
-**File**: `tests/test_protocols.py`
+**File**: `tests/test_ftp_plugin.py`, `tests/test_torrent_plugin.py`
 
 ```python
 class TestFTPPlugin:
@@ -246,13 +283,21 @@ class TestProtocolHandler:
 ```
 
 **Implementation Tasks**:
-- [ ] Create test fixtures for FTP tests
-- [ ] Create test fixtures for torrent tests
-- [ ] Implement FTP protocol tests
-- [ ] Implement torrent protocol tests
-- [ ] Implement magnet link tests
-- [ ] Add integration tests for protocol handler
-- [ ] Achieve 90%+ test coverage for protocol features
+- [x] Create test fixtures for FTP tests
+- [x] Create test fixtures for torrent tests
+- [x] Implement FTP protocol tests
+- [x] Implement torrent protocol tests
+- [x] Implement magnet link tests
+- [x] Add integration tests for protocol handler
+- [x] Achieve 90%+ test coverage for protocol features
+
+**Progress Notes**:
+- test_ftp_plugin.py created with 23 tests covering all FTP functionality
+- test_torrent_plugin.py created with 16 tests covering all torrent functionality
+- Tests include URL handling, metadata retrieval, directory listing, download operations
+- Proper mocking of external dependencies (aioftp, libtorrent)
+- All tests passing with pytest
+- Integration verification script created (verify_integration.py)
 
 ---
 
