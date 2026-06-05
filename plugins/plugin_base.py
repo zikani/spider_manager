@@ -53,8 +53,9 @@ class PluginNotApplicable(PluginError):
 
 class PluginDependencyMissing(PluginError):
     """Raised when a required third-party package is absent."""
-    def __init__(self, package: str):
+    def __init__(self, package: str, install_hint: str = ""):
         self.package = package
+        self.install_hint = install_hint
         super().__init__(
             f"Required package '{package}' is not installed. "
             f"Run: pip install {package}"
@@ -88,6 +89,7 @@ class DownloadMode(Enum):
     YTDLP       = "ytdlp"
     BROWSER     = "browser"
     BLOB        = "blob"
+    TORRENT     = "torrent"
 
 
 

@@ -109,17 +109,39 @@ class TorrentPlugin(SpiderPlugin):
             log.error("[Torrent] Failed to process URL %s: %s", url, exc)
             raise PluginError(f"Torrent processing failed: {exc}") from exc
     
+    def _import_libtorrent(self):
+        """Import libtorrent trying different possible package names"""
+        import importlib
+        lt = None
+        # Try different possible import names for libtorrent
+        for import_name in ['libtorrent', 'libtorrent_rasterbar']:
+            try:
+                lt = importlib.import_module(import_name)
+                log.info(f"Successfully imported libtorrent as {import_name}")
+                return lt
+            except ImportError:
+                continue
+        
+        return None
+    
     def _check_libtorrent(self):
         """Check if libtorrent is available"""
-        try:
-            import libtorrent as lt
-        except ImportError:
-            raise PluginDependencyMissing("libtorrent")
+        lt = self._import_libtorrent()
+        if lt is None:
+            raise PluginDependencyMissing(
+                "libtorrent",
+                install_hint="pip install python-libtorrent or pip install libtorrent"
+            )
     
     async def _process_magnet(self, url: str, ctx: PluginContext) -> PluginResult:
         """Process magnet link"""
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                raise PluginDependencyMissing(
+                    "libtorrent",
+                    install_hint="pip install python-libtorrent or pip install libtorrent"
+                )
             
             # Parse magnet link
             magnet_info = self._parse_magnet_link(url)
@@ -167,7 +189,7 @@ class TorrentPlugin(SpiderPlugin):
             result = PluginResult(
                 url=url,
                 filename=filename,
-                download_mode=DownloadMode.DIRECT,
+                download_mode=DownloadMode.TORRENT,
                 size=total_size,
                 plugin_name=self.name,
                 title=torrent_name,
@@ -200,7 +222,12 @@ class TorrentPlugin(SpiderPlugin):
     async def _process_torrent_file(self, url: str, ctx: PluginContext) -> PluginResult:
         """Process torrent file URL"""
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                raise PluginDependencyMissing(
+                    "libtorrent",
+                    install_hint="pip install python-libtorrent or pip install libtorrent"
+                )
             
             # For torrent files, we need to download them first
             # This is a simplified version - in production, you'd download the .torrent file
@@ -217,7 +244,7 @@ class TorrentPlugin(SpiderPlugin):
             result = PluginResult(
                 url=url,
                 filename=filename,
-                download_mode=DownloadMode.DIRECT,
+                download_mode=DownloadMode.TORRENT,
                 size=0,  # Size unknown until torrent is parsed
                 plugin_name=self.name,
             )
@@ -263,7 +290,9 @@ class TorrentPlugin(SpiderPlugin):
             dict with keys: name, size, files, info_hash, trackers
         """
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                return {'name': '', 'size': 0, 'files': [], 'info_hash': '', 'trackers': []}
             
             if url.startswith('magnet:'):
                 return await self._get_magnet_metadata(url, ctx)
@@ -277,7 +306,9 @@ class TorrentPlugin(SpiderPlugin):
     async def _get_magnet_metadata(self, url: str, ctx: PluginContext) -> dict:
         """Get metadata from magnet link"""
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                return {'name': '', 'size': 0, 'files': [], 'info_hash': '', 'trackers': []}
             
             session = lt.session()
             settings = {
@@ -322,7 +353,9 @@ class TorrentPlugin(SpiderPlugin):
     async def _get_torrent_file_metadata(self, url: str, ctx: PluginContext) -> dict:
         """Get metadata from torrent file"""
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                return {'name': '', 'size': 0, 'files': [], 'info_hash': '', 'trackers': []}
             
             # For torrent files, we'd need to download and parse them
             # This is a placeholder - in production, download the file first
@@ -358,7 +391,12 @@ class TorrentPlugin(SpiderPlugin):
             Path to downloaded files
         """
         try:
-            import libtorrent as lt
+            lt = self._import_libtorrent()
+            if lt is None:
+                raise PluginDependencyMissing(
+                    "libtorrent",
+                    install_hint="pip install python-libtorrent or pip install libtorrent"
+                )
             
             options = self._extract_torrent_options(ctx)
             

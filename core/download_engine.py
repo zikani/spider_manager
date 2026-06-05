@@ -740,6 +740,7 @@ class DownloadEngine:
             "stream_dash": self._run_dash,
             "ytdlp":       self._run_ytdlp,
             "blob":        self._run_blob,
+            "torrent":     self._run_torrent,
         }.get(task.download_mode, self._run_direct)(task)
 
         t = asyncio.create_task(coro)
@@ -1439,6 +1440,59 @@ class DownloadEngine:
         task.download_mode = "ytdlp"
         await self._run_ytdlp(task)
         task.url = original_url
+
+    async def _run_torrent(self, task: DownloadTask):
+        """
+        Torrent/magnet download pipeline using TorrentPlugin.
+        Delegates to the plugin's download_torrent method which uses libtorrent.
+        """
+        from plugins.plugin_base import PluginContext
+        from plugins.torrent_plugin import TorrentPlugin
+
+        task.state      = DownloadState.DOWNLOADING
+        task.started_at = task.started_at or time.time()
+
+        os.makedirs(task.save_path, exist_ok=True)
+
+        plugin = TorrentPlugin()
+        ctx = PluginContext.from_settings()
+        ctx.output_dir = task.save_path
+
+        # Extract torrent options from task if available
+        if hasattr(task, 'headers') and 'torrent_options' in task.headers:
+            ctx.extra.update(task.headers['torrent_options'])
+
+        def progress_callback(progress_data):
+            """Update task from libtorrent progress callbacks."""
+            task.downloaded = progress_data.get('downloaded', 0)
+            if task.total_size == 0:
+                task.total_size = progress_data.get('total', 0)
+            task.speed = progress_data.get('download_rate', 0) / 1024  # Convert to KB/s
+            task.eta = int((task.total_size - task.downloaded) / task.speed) if task.speed > 0 else 0
+            task._fire_progress()
+
+        try:
+            save_path = Path(task.save_path)
+            await plugin.download_torrent(
+                url=task.url,
+                save_path=save_path,
+                ctx=ctx,
+                progress_callback=progress_callback,
+            )
+
+            task.state        = DownloadState.COMPLETED
+            task.completed_at = time.time()
+            task.downloaded   = task.total_size
+            log.info("[torrent] Complete: %s", task.filename)
+
+        except asyncio.CancelledError:
+            task.state = DownloadState.CANCELLED
+            log.info("[torrent] Cancelled: %s", task.filename)
+            raise
+        except Exception as e:
+            task.state = DownloadState.ERROR
+            task.error = str(e)
+            log.error("[torrent] %s failed: %s", task.filename, e)
 
 
     @staticmethod

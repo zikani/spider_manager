@@ -366,7 +366,7 @@ class QueueManager(QObject):
     async def _run_plugin_task(self, task: DownloadTask):
         """Handle plugin-based download (FTP, torrent)."""
         try:
-            from plugins.plugin_base import PluginRegistry, PluginContext
+            from plugins.plugin_base import PluginRegistry, PluginContext, PluginDependencyMissing
             from config.settings import get_download_directory
             
             # Get the appropriate plugin
@@ -376,13 +376,10 @@ class QueueManager(QObject):
             if not plugin:
                 raise Exception(f"No plugin found for URL: {task.url}")
             
-            # Create plugin context
+            # Create plugin context with correct parameter names
             ctx = PluginContext(
-                download_dir=task.save_path or get_download_directory(),
-                filename=task.filename,
-                referrer=task.referrer,
-                headers=task.headers,
-                extra_options={}
+                output_dir=task.save_path or get_download_directory(),
+                extra={"filename": task.filename, "referrer": task.referrer, "headers": task.headers}
             )
             
             # Process with plugin
@@ -401,6 +398,12 @@ class QueueManager(QObject):
                 self.download_failed.emit(task.id)
                 log.error("Plugin download failed: %s - %s", task.filename, task.error)
                 
+        except PluginDependencyMissing as e:
+            task.state = DownloadState.ERROR
+            install_hint = getattr(e, 'install_hint', f"pip install {e.package}")
+            task.error = f"Missing dependency: {e.package}. Install with: {install_hint}"
+            self.download_failed.emit(task.id)
+            log.error("Plugin dependency missing: %s - %s", task.filename, str(e))
         except Exception as e:
             task.state = DownloadState.ERROR
             task.error = str(e)

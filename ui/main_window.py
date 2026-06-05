@@ -860,13 +860,19 @@ class SpiderMainWindow(QMainWindow):
             from plugins.ftp_plugin import FTPPlugin
             from plugins.torrent_plugin import TorrentPlugin
             from plugins.plugin_base import PluginRegistry
+            from utils.logger import get_logger
+            log = get_logger(__name__)
             
             # Check URL type
             url_lower = url.lower()
             is_youtube = "youtube.com" in url_lower or "youtu.be" in url_lower
             is_ftp = url_lower.startswith("ftp://") or url_lower.startswith("ftps://")
+            is_torrent_file_over_http = (url_lower.endswith(".torrent") and 
+                                          url_lower.startswith(("http://", "https://")))
             is_magnet = url_lower.startswith("magnet:")
-            is_torrent = url_lower.endswith(".torrent")
+            is_true_torrent = url_lower.startswith("torrent:")
+            
+            log.info(f"URL type detection: is_youtube={is_youtube}, is_ftp={is_ftp}, is_torrent_file_over_http={is_torrent_file_over_http}, is_magnet={is_magnet}, is_true_torrent={is_true_torrent}")
             
             # Check if plugins can handle
             yt_plugin = YtDlpPlugin()
@@ -877,8 +883,11 @@ class SpiderMainWindow(QMainWindow):
             ftp_can_handle = ftp_plugin.can_handle(url)
             torrent_can_handle = torrent_plugin.can_handle(url)
             
+            log.info(f"Plugin can_handle: yt={yt_can_handle}, ftp={ftp_can_handle}, torrent={torrent_can_handle}")
+            
             # Handle streaming/video downloads
             if is_youtube or is_streaming or hls_info or video_info or yt_can_handle:
+                log.info("Routing to streaming/video download handler")
                 dlg = DownloadFileInfoDialog(self, url, filename or "video_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
@@ -887,21 +896,30 @@ class SpiderMainWindow(QMainWindow):
             
             # Handle FTP downloads
             if is_ftp or ftp_can_handle:
+                log.info("Routing to FTP download handler")
                 dlg = DownloadFileInfoDialog(self, url, filename or "ftp_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
                     await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "ftp")
                 return
             
-            # Handle torrent/magnet downloads
-            if is_magnet or is_torrent or torrent_can_handle:
+            # Handle magnet/true torrent downloads (not .torrent files over HTTP)
+            if is_magnet or is_true_torrent:
+                log.info("Routing to torrent/magnet download handler")
                 dlg = DownloadFileInfoDialog(self, url, filename or "torrent_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
                     await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "torrent")
                 return
             
+            # .torrent files over HTTP: download the .torrent file directly
+            if is_torrent_file_over_http:
+                log.info("Routing .torrent file over HTTP to direct download handler")
+                await self._handle_direct_download(url, filename or url.split("/")[-1], save_path, referrer, headers)
+                return
+            
             # Handle direct HTTP downloads
+            log.info("Routing to direct HTTP download handler")
             await self._handle_direct_download(url, filename, save_path, referrer, headers)
                 
         except Exception as e:

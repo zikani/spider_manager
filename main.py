@@ -61,6 +61,11 @@ def main():
     
     _cleanup_temp_files()
     
+    # Load default plugins
+    from plugins.plugin_base import PluginRegistry
+    registry = PluginRegistry.instance()
+    registry.load_defaults()
+    
     app = QApplication(sys.argv)
     app.setWindowIcon(icons.get_icon(Icons.SPIDER_LOGO))
     loop = QEventLoop(app)

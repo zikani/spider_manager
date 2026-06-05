@@ -297,7 +297,7 @@ class HTTPSHandler(HTTPHandler):
     async def download(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """
         Download file via HTTPS.
-        
+
         This is a placeholder that will be integrated with the download engine.
         For now, it returns basic metadata.
         """
@@ -311,10 +311,78 @@ class HTTPSHandler(HTTPHandler):
         }
 
 
+class TorrentHandler(ProtocolHandler):
+    """
+    BitTorrent protocol handler.
+    Handles .torrent file downloads using libtorrent.
+    """
+
+    @property
+    def protocol(self) -> str:
+        return "torrent"
+
+    @property
+    def supported_schemes(self) -> list[str]:
+        return ["torrent"]
+
+    def can_handle(self, url: str) -> bool:
+        """Check if URL is a torrent file."""
+        return url.lower().endswith(".torrent") or url.lower().startswith("torrent:")
+
+    async def download(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Download file via BitTorrent.
+
+        This is a placeholder that delegates to the TorrentPlugin.
+        The actual download is handled by the download engine's _run_torrent method.
+        """
+        return {
+            "url": url,
+            "protocol": "torrent",
+            "status": "pending",
+            "message": "Torrent download handled by TorrentPlugin via download engine"
+        }
+
+
+class MagnetHandler(ProtocolHandler):
+    """
+    Magnet link protocol handler.
+    Handles magnet: URIs using libtorrent.
+    """
+
+    @property
+    def protocol(self) -> str:
+        return "magnet"
+
+    @property
+    def supported_schemes(self) -> list[str]:
+        return ["magnet"]
+
+    def can_handle(self, url: str) -> bool:
+        """Check if URL is a magnet link."""
+        return url.lower().startswith("magnet:")
+
+    async def download(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Download file via magnet link.
+
+        This is a placeholder that delegates to the TorrentPlugin.
+        The actual download is handled by the download engine's _run_torrent method.
+        """
+        return {
+            "url": url,
+            "protocol": "magnet",
+            "status": "pending",
+            "message": "Magnet download handled by TorrentPlugin via download engine"
+        }
+
+
 def register_default_handlers(registry: ProtocolRegistry) -> None:
     """
-    Register default protocol handlers (HTTP, HTTPS).
+    Register default protocol handlers (HTTP, HTTPS, Torrent, Magnet).
     """
     registry.register(HTTPHandler())
     registry.register(HTTPSHandler())
-    log.info("Registered default protocol handlers: http, https")
+    registry.register(TorrentHandler())
+    registry.register(MagnetHandler())
+    log.info("Registered default protocol handlers: http, https, torrent, magnet")

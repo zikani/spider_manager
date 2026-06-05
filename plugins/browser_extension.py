@@ -334,7 +334,16 @@ class ExtensionIPCHandler:
 
                 if self.dialog_callback:
                     log.info(f"Triggering download dialog for: {filename} (priority: {priority})")
-                    self.dialog_callback(download_info)
+                    # Send response FIRST, then schedule callback to avoid task re-entry
+                    await self._send_response(writer, {"status": "received", "url": url})
+                    try:
+                        writer.close()
+                    except Exception:
+                        pass
+                    # Schedule callback on the event loop after this task yields
+                    loop = asyncio.get_event_loop()
+                    loop.call_soon(self.dialog_callback, download_info)
+                    return
                 else:
                     try:
                         task = self.queue_manager.create_task(
@@ -359,9 +368,11 @@ class ExtensionIPCHandler:
         except Exception as e:
             log.error(f"Error handling extension IPC client: {e}")
         finally:
+            # Writer is already closed in the dialog callback path
+            # Only close here if not already closed
             try:
-                writer.close()
-                # Don't wait for close to avoid task conflicts with main window
+                if not writer.is_closing():
+                    writer.close()
             except Exception as e:
                 log.debug(f"Error closing client connection: {e}")
 

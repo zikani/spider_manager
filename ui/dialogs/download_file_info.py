@@ -21,6 +21,7 @@ class DownloadFileInfoDialog(QDialog):
         self.filename = filename
         self.size_bytes = size_bytes
         self.selected_directory = ""
+        self.protocol = self._detect_protocol(url)
         
         if category is None:
             detected_category = FileCategorizer.categorize_by_extension(filename)
@@ -33,7 +34,11 @@ class DownloadFileInfoDialog(QDialog):
                 "Audio": "Music",
                 "Other": "General"
             }
-            self.category = category_map.get(detected_category, "General")
+            # Auto-detect torrent category for magnet/torrent URLs
+            if self.protocol in ["magnet", "torrent"]:
+                self.category = "Torrents"
+            else:
+                self.category = category_map.get(detected_category, "General")
         else:
             self.category = category
         
@@ -63,7 +68,7 @@ class DownloadFileInfoDialog(QDialog):
         cat_layout = QHBoxLayout()
         cat_layout.addWidget(QLabel("Category:"))
         self.cat_combo = QComboBox()
-        self.cat_combo.addItems(["General", "Compressed", "Documents", "Music", "Pictures", "Programs", "Video"])
+        self.cat_combo.addItems(["General", "Compressed", "Documents", "Music", "Pictures", "Programs", "Video", "Torrents"])
         self.cat_combo.setCurrentText(self.category)
         self.cat_combo.currentTextChanged.connect(self._on_category_changed)
         cat_layout.addWidget(self.cat_combo, stretch=1)
@@ -72,6 +77,15 @@ class DownloadFileInfoDialog(QDialog):
         add_cat_btn.setIcon(icons.get_icon(Icons.ADD))
         add_cat_btn.setFixedSize(24, 24)
         cat_layout.addWidget(add_cat_btn)
+        
+        # Add protocol options button for FTP/torrent
+        if self.protocol in ["ftp", "magnet", "torrent"]:
+            options_btn = QPushButton()
+            options_btn.setIcon(icons.get_icon(Icons.SETTINGS))
+            options_btn.setFixedSize(24, 24)
+            options_btn.setToolTip(f"{self.protocol.upper()} Options")
+            options_btn.clicked.connect(self._show_protocol_options)
+            cat_layout.addWidget(options_btn)
         
         info_side_layout = QVBoxLayout()
         self.type_icon = QLabel()
@@ -140,6 +154,7 @@ class DownloadFileInfoDialog(QDialog):
             "Programs": Icons.SETTINGS,
             "Documents": Icons.FILE,
             "Pictures": Icons.FILE_IMAGE,
+            "Torrents": Icons.FILE_ARCHIVE,  # Use archive icon for torrents
         }
         icon_enum = icon_map.get(cat, Icons.FILE)
         self.type_icon.setPixmap(icons.get_icon(icon_enum).pixmap(48, 48))
@@ -196,7 +211,8 @@ class DownloadFileInfoDialog(QDialog):
                     "General": "Other",
                     "Video": "Video",
                     "Music": "Audio",
-                    "Pictures": "Pictures"
+                    "Pictures": "Pictures",
+                    "Torrents": "Other"  # Torrents go to Other category for now
                 }
                 file_category = category_to_file_category.get(new_category, "Other")
                 
@@ -227,3 +243,32 @@ class DownloadFileInfoDialog(QDialog):
             "category": self.cat_combo.currentText(),
             "description": self.desc_edit.text()
         }
+    
+    def _detect_protocol(self, url: str) -> str:
+        """Detect the protocol from the URL."""
+        if not url:
+            return "http"
+        url_lower = url.lower()
+        if url_lower.startswith("ftp://") or url_lower.startswith("ftps://"):
+            return "ftp"
+        elif url_lower.startswith("magnet:"):
+            return "magnet"
+        elif url_lower.startswith("torrent:"):
+            return "torrent"
+        elif url_lower.startswith("http://"):
+            return "http"
+        elif url_lower.startswith("https://"):
+            return "https"
+        return "http"
+    
+    def _show_protocol_options(self):
+        """Show protocol-specific options dialog."""
+        try:
+            from ui.dialogs.protocol_options_dialog import ProtocolOptionsDialog
+            dlg = ProtocolOptionsDialog(self.protocol, self)
+            if dlg.exec() == ProtocolOptionsDialog.DialogCode.Accepted:
+                # Store protocol options for later use
+                self.protocol_options = dlg.get_options()
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", f"Failed to open protocol options: {str(e)}")
