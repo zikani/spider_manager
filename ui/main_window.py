@@ -857,22 +857,105 @@ class SpiderMainWindow(QMainWindow):
         """Handle intercepted download by showing dialog and adding to queue."""
         try:
             from plugins.yt_dlp_plugin import YtDlpPlugin
-            plugin = YtDlpPlugin()
-            can_handle = plugin.can_handle(url)
-            is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
+            from plugins.ftp_plugin import FTPPlugin
+            from plugins.torrent_plugin import TorrentPlugin
+            from plugins.plugin_base import PluginRegistry
             
-            if is_youtube or is_streaming or hls_info or video_info or can_handle:
+            # Check URL type
+            url_lower = url.lower()
+            is_youtube = "youtube.com" in url_lower or "youtu.be" in url_lower
+            is_ftp = url_lower.startswith("ftp://") or url_lower.startswith("ftps://")
+            is_magnet = url_lower.startswith("magnet:")
+            is_torrent = url_lower.endswith(".torrent")
+            
+            # Check if plugins can handle
+            yt_plugin = YtDlpPlugin()
+            ftp_plugin = FTPPlugin()
+            torrent_plugin = TorrentPlugin()
+            
+            yt_can_handle = yt_plugin.can_handle(url)
+            ftp_can_handle = ftp_plugin.can_handle(url)
+            torrent_can_handle = torrent_plugin.can_handle(url)
+            
+            # Handle streaming/video downloads
+            if is_youtube or is_streaming or hls_info or video_info or yt_can_handle:
                 dlg = DownloadFileInfoDialog(self, url, filename or "video_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
                     await self._handle_streaming_download_with_queue(url, info["filename"], info["save_path"], referrer, headers, hls_info, video_info)
                 return
             
+            # Handle FTP downloads
+            if is_ftp or ftp_can_handle:
+                dlg = DownloadFileInfoDialog(self, url, filename or "ftp_download", 0)
+                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
+                    info = dlg.get_info()
+                    await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "ftp")
+                return
+            
+            # Handle torrent/magnet downloads
+            if is_magnet or is_torrent or torrent_can_handle:
+                dlg = DownloadFileInfoDialog(self, url, filename or "torrent_download", 0)
+                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
+                    info = dlg.get_info()
+                    await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "torrent")
+                return
+            
+            # Handle direct HTTP downloads
             await self._handle_direct_download(url, filename, save_path, referrer, headers)
                 
         except Exception as e:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", f"Failed to handle intercepted download: {str(e)}")
+
+    async def _handle_plugin_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, protocol: str):
+        """Handle plugin-based download (FTP, torrent) by adding to queue."""
+        try:
+            from plugins.plugin_base import PluginRegistry, PluginContext
+            from core.queue_manager import DownloadState
+            
+            # Get the appropriate plugin
+            registry = PluginRegistry.instance()
+            plugin = registry.find(url)
+            
+            if not plugin:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "Error", f"No plugin found for URL: {url}")
+                return
+            
+            # Create task for plugin download
+            task = self._queue.create_task(
+                url=url,
+                filename=filename,
+                save_path=save_path,
+                category="documents",  # Default category
+                referrer=referrer,
+                headers=headers
+            )
+            
+            # Mark as plugin download
+            task._plugin_name = plugin.name
+            task._protocol = protocol
+            
+            def _pc(t): self._bridge.task_progress.emit(t.id)
+            def _sc(t): 
+                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
+                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
+                self._bridge.tasks_changed.emit(); 
+                self._bridge.stats_changed.emit()
+            task.progress_callback = _pc
+            task.state_callback = _sc
+            
+            await self._queue.add(task)
+            self._bridge.tasks_changed.emit()
+            
+            # Show progress dialog
+            prog_dlg = DownloadProgressDialog(self, task, self._bridge, self._queue)
+            prog_dlg.show()
+                
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", f"Failed to handle plugin download: {str(e)}")
 
     async def _handle_direct_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict):
         """Handle direct HTTP download by showing dialog and adding to queue."""

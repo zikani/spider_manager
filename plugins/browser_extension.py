@@ -230,6 +230,10 @@ class ExtensionIPCHandler:
                     log.error(f"Invalid URL received from extension: {url}")
                     return
                 
+                # Decode HTML entities (e.g., &amp; -> &) that may be present in magnet links
+                import html
+                url = html.unescape(url)
+                
                 # Accept HTTP, HTTPS, FTP, FTPS, magnet, and torrent URLs
                 url_lower = url.lower()
                 valid_schemes = ('http://', 'https://', 'ftp://', 'ftps://', 'magnet:', 'torrent:')
@@ -240,9 +244,11 @@ class ExtensionIPCHandler:
                 from utils.url_parser import safe_filename_from_url, is_valid_url
                 from config.settings import get_download_directory
 
-                if not is_valid_url(url):
-                    log.error(f"URL validation failed: {url}")
-                    return
+                # Skip URL validation for magnet links (they're not HTTP/HTTPS)
+                if not url_lower.startswith('magnet:'):
+                    if not is_valid_url(url):
+                        log.error(f"URL validation failed: {url}")
+                        return
 
                 filename = message.get("filename") or safe_filename_from_url(url)
                 referrer = message.get("referrer", "")
@@ -355,7 +361,7 @@ class ExtensionIPCHandler:
         finally:
             try:
                 writer.close()
-                await writer.wait_closed()
+                # Don't wait for close to avoid task conflicts with main window
             except Exception as e:
                 log.debug(f"Error closing client connection: {e}")
 

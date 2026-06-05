@@ -332,7 +332,11 @@ class QueueManager(QObject):
 
     async def _run_task(self, task: DownloadTask):
         try:
-            await self.engine.start(task)
+            # Check if this is a plugin-based download (FTP, torrent)
+            if hasattr(task, '_plugin_name') and task._plugin_name:
+                await self._run_plugin_task(task)
+            else:
+                await self.engine.start(task)
         finally:
             async with self._lock:
                 if task.id in self._active:
@@ -358,7 +362,50 @@ class QueueManager(QObject):
                             
                             if not self._queue and not self._active:
                                 self.queue_finished.emit()
-            await self._try_dispatch()
+
+    async def _run_plugin_task(self, task: DownloadTask):
+        """Handle plugin-based download (FTP, torrent)."""
+        try:
+            from plugins.plugin_base import PluginRegistry, PluginContext
+            from config.settings import get_download_directory
+            
+            # Get the appropriate plugin
+            registry = PluginRegistry.instance()
+            plugin = registry.find(task.url)
+            
+            if not plugin:
+                raise Exception(f"No plugin found for URL: {task.url}")
+            
+            # Create plugin context
+            ctx = PluginContext(
+                download_dir=task.save_path or get_download_directory(),
+                filename=task.filename,
+                referrer=task.referrer,
+                headers=task.headers,
+                extra_options={}
+            )
+            
+            # Process with plugin
+            task.state = DownloadState.DOWNLOADING
+            result = await plugin.process(task.url, ctx)
+            
+            if result.success:
+                task.state = DownloadState.COMPLETED
+                task.downloaded = result.size or 0
+                task.total_size = result.size or 0
+                self.download_completed.emit(task.id)
+                log.info("Plugin download completed: %s", task.filename)
+            else:
+                task.state = DownloadState.ERROR
+                task.error = result.error or "Unknown error"
+                self.download_failed.emit(task.id)
+                log.error("Plugin download failed: %s - %s", task.filename, task.error)
+                
+        except Exception as e:
+            task.state = DownloadState.ERROR
+            task.error = str(e)
+            self.download_failed.emit(task.id)
+            log.error("Plugin download error: %s - %s", task.filename, str(e))
 
     async def resume_all(self):
         """Resume all paused downloads."""
