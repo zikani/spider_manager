@@ -775,13 +775,26 @@ class SpiderMainWindow(QMainWindow):
 
         try:
             from plugins.yt_dlp_plugin import YtDlpPlugin
+            from plugins.torrent_plugin import TorrentPlugin
             from plugins.browser_extension import ExtensionIPCHandler
             
+            url_lower = url.lower()
+            is_magnet = url_lower.startswith("magnet:")
+            is_torrent = url_lower.startswith("torrent:") or url_lower.endswith(".torrent")
             is_streaming = ExtensionIPCHandler.is_streaming_url(url) or YtDlpPlugin.is_streaming_url(url)
+            
+            # Detect magnet/torrent URLs and route to torrent handler
+            if is_magnet or is_torrent:
+                dlg = DownloadFileInfoDialog(self, url, "torrent_download", 0)
+                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
+                    info = dlg.get_info()
+                    protocol_options = getattr(dlg, 'protocol_options', None)
+                    await self._handle_torrent_download_with_queue(url, info["filename"], info["save_path"], "", {}, protocol_options)
+                return
             
             plugin = YtDlpPlugin()
             can_handle = plugin.can_handle(url)
-            is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
+            is_youtube = "youtube.com" in url_lower or "youtu.be" in url_lower
             
             if is_youtube or is_streaming or can_handle:
                 dlg = DownloadFileInfoDialog(self, url, "video_download", 0)
@@ -900,7 +913,7 @@ class SpiderMainWindow(QMainWindow):
                 dlg = DownloadFileInfoDialog(self, url, filename or "ftp_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
-                    await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "ftp")
+                    await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "ftp", info["category"])
                 return
             
             # Handle magnet/true torrent downloads (not .torrent files over HTTP)
@@ -909,13 +922,18 @@ class SpiderMainWindow(QMainWindow):
                 dlg = DownloadFileInfoDialog(self, url, filename or "torrent_download", 0)
                 if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
                     info = dlg.get_info()
-                    await self._handle_plugin_download(url, info["filename"], info["save_path"], referrer, headers, "torrent")
+                    protocol_options = getattr(dlg, 'protocol_options', None)
+                    await self._handle_torrent_download_with_queue(url, info["filename"], info["save_path"], referrer, headers, protocol_options)
                 return
             
-            # .torrent files over HTTP: download the .torrent file directly
+            # .torrent files over HTTP: route to torrent handler to download content, not the .torrent file
             if is_torrent_file_over_http:
-                log.info("Routing .torrent file over HTTP to direct download handler")
-                await self._handle_direct_download(url, filename or url.split("/")[-1], save_path, referrer, headers)
+                log.info("Routing .torrent file over HTTP to torrent download handler")
+                dlg = DownloadFileInfoDialog(self, url, filename or "torrent_download", 0)
+                if dlg.exec() == DownloadFileInfoDialog.DialogCode.Accepted:
+                    info = dlg.get_info()
+                    protocol_options = getattr(dlg, 'protocol_options', None)
+                    await self._handle_torrent_download_with_queue(url, info["filename"], info["save_path"], referrer, headers, protocol_options)
                 return
             
             # Handle direct HTTP downloads
@@ -926,7 +944,7 @@ class SpiderMainWindow(QMainWindow):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", f"Failed to handle intercepted download: {str(e)}")
 
-    async def _handle_plugin_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, protocol: str):
+    async def _handle_plugin_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, protocol: str, category: str = None):
         """Handle plugin-based download (FTP, torrent) by adding to queue."""
         try:
             from plugins.plugin_base import PluginRegistry, PluginContext
@@ -941,12 +959,16 @@ class SpiderMainWindow(QMainWindow):
                 QMessageBox.warning(self, "Error", f"No plugin found for URL: {url}")
                 return
             
+            # Use provided category or default based on protocol
+            if category is None:
+                category = "Torrents" if protocol == "torrent" else "Documents"
+            
             # Create task for plugin download
             task = self._queue.create_task(
                 url=url,
                 filename=filename,
                 save_path=save_path,
-                category="documents",  # Default category
+                category=category,
                 referrer=referrer,
                 headers=headers
             )
@@ -1050,6 +1072,48 @@ class SpiderMainWindow(QMainWindow):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Streaming Download Error", 
                 f"Failed to queue streaming download: {str(e)}")
+
+    async def _handle_torrent_download_with_queue(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, protocol_options: dict = None):
+        """Handle torrent/magnet download through the download queue (mirrors yt-dlp pattern)."""
+        try:
+            task = self._queue.create_task(
+                url=url,
+                filename=filename,
+                save_path=save_path,
+                category="Torrents",
+                referrer=referrer,
+                headers=headers
+            )
+            
+            task.download_mode = "torrent"
+            task.total_size = 0
+            
+            # Pass protocol options to task headers if provided
+            if protocol_options:
+                if not hasattr(task, 'headers'):
+                    task.headers = {}
+                task.headers['torrent_options'] = protocol_options
+            
+            def _pc(t): self._bridge.task_progress.emit(t.id)
+            def _sc(t): 
+                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
+                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
+                self._bridge.tasks_changed.emit(); 
+                self._bridge.stats_changed.emit()
+            task.progress_callback = _pc
+            task.state_callback = _sc
+            
+            await self._queue.add(task)
+            self._bridge.tasks_changed.emit()
+            
+            prog_dlg = DownloadProgressDialog(self, task, self._bridge, self._queue)
+            prog_dlg.speed_limit_changed.connect(self._engine.set_speed_limit)
+            prog_dlg.show()
+                
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Torrent Download Error", 
+                f"Failed to queue torrent download: {str(e)}")
 
     async def _handle_streaming_download(self, url: str, filename: str, save_path: str, referrer: str, headers: dict, hls_info: dict = None, video_info: dict = None):
         """Handle streaming download using yt-dlp (legacy method - kept for fallback)."""

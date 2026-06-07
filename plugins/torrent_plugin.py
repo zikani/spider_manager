@@ -206,7 +206,7 @@ class TorrentPlugin(SpiderPlugin):
                     result.playlist_items.append(PluginResult(
                         url=url,
                         filename=file_name,
-                        download_mode=DownloadMode.DIRECT,
+                        download_mode=DownloadMode.TORRENT,
                         size=file_size,
                         plugin_name=self.name,
                     ))
@@ -421,8 +421,32 @@ class TorrentPlugin(SpiderPlugin):
             if url.startswith('magnet:'):
                 handle = lt.add_magnet_uri(session, url, {'save_path': str(save_path)})
             else:
-                # For torrent files, load from file
-                handle = lt.add_torrent({'save_path': str(save_path), 'ti': lt.torrent_info(url)})
+                # For torrent files, check if it's an HTTP URL or local file
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                
+                if parsed.scheme in ('http', 'https'):
+                    # Fetch .torrent file from HTTP URL
+                    import aiohttp
+                    async with aiohttp.ClientSession() as session_http:
+                        async with session_http.get(url) as response:
+                            if response.status != 200:
+                                raise PluginError(f"Failed to fetch .torrent file: HTTP {response.status}")
+                            torrent_data = await response.read()
+                    
+                    # Parse torrent data using bencode
+                    try:
+                        import bencodepy
+                        torrent_info = lt.torrent_info(bencodepy.decode(torrent_data))
+                    except ImportError:
+                        # Fallback to bencode if bencodepy not available
+                        import bencode
+                        torrent_info = lt.torrent_info(bencode.bdecode(torrent_data))
+                    
+                    handle = lt.add_torrent({'save_path': str(save_path), 'ti': torrent_info})
+                else:
+                    # Local file path
+                    handle = lt.add_torrent({'save_path': str(save_path), 'ti': lt.torrent_info(url)})
             
             # Set download priorities
             if options.prioritize_first_last:

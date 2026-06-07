@@ -366,7 +366,7 @@ class QueueManager(QObject):
     async def _run_plugin_task(self, task: DownloadTask):
         """Handle plugin-based download (FTP, torrent)."""
         try:
-            from plugins.plugin_base import PluginRegistry, PluginContext, PluginDependencyMissing
+            from plugins.plugin_base import PluginRegistry, PluginContext, PluginDependencyMissing, DownloadMode
             from config.settings import get_download_directory
             
             # Get the appropriate plugin
@@ -386,17 +386,25 @@ class QueueManager(QObject):
             task.state = DownloadState.DOWNLOADING
             result = await plugin.process(task.url, ctx)
             
-            if result.success:
-                task.state = DownloadState.COMPLETED
-                task.downloaded = result.size or 0
-                task.total_size = result.size or 0
-                self.download_completed.emit(task.id)
-                log.info("Plugin download completed: %s", task.filename)
-            else:
-                task.state = DownloadState.ERROR
-                task.error = result.error or "Unknown error"
-                self.download_failed.emit(task.id)
-                log.error("Plugin download failed: %s - %s", task.filename, task.error)
+            # Apply PluginResult fields to task
+            if result.filename:
+                task.filename = result.filename
+            if result.size and result.size > 0:
+                task.total_size = result.size
+            if result.download_mode:
+                task.download_mode = result.download_mode.value if hasattr(result.download_mode, 'value') else result.download_mode
+            
+            # If result indicates torrent mode, route to engine.start() instead of marking complete
+            if result.download_mode == DownloadMode.TORRENT:
+                log.info("Plugin returned TORRENT mode, routing to engine.start() for %s", task.filename)
+                await self.engine.start(task)
+                return
+            
+            # For other plugin downloads (FTP), mark as complete
+            task.state = DownloadState.COMPLETED
+            task.downloaded = task.total_size
+            self.download_completed.emit(task.id)
+            log.info("Plugin download completed: %s", task.filename)
                 
         except PluginDependencyMissing as e:
             task.state = DownloadState.ERROR

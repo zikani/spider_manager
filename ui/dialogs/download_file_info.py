@@ -22,6 +22,7 @@ class DownloadFileInfoDialog(QDialog):
         self.size_bytes = size_bytes
         self.selected_directory = ""
         self.protocol = self._detect_protocol(url)
+        self.protocol_options = {}
         
         if category is None:
             detected_category = FileCategorizer.categorize_by_extension(filename)
@@ -241,7 +242,8 @@ class DownloadFileInfoDialog(QDialog):
             "filename": self.name_edit.text(),
             "save_path": self.path_display.text(),
             "category": self.cat_combo.currentText(),
-            "description": self.desc_edit.text()
+            "description": self.desc_edit.text(),
+            "protocol_options": self.protocol_options
         }
     
     def _detect_protocol(self, url: str) -> str:

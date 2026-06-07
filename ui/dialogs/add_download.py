@@ -105,6 +105,42 @@ class AddDownloadDialog(QDialog):
         save_path = self.path_edit.text().strip() or app_settings.get_download_directory()
         Path(save_path).mkdir(parents=True, exist_ok=True)
 
+        # Detect magnet/torrent URLs and handle them specially
+        url_lower = url.lower()
+        is_magnet = url_lower.startswith("magnet:")
+        is_torrent = url_lower.startswith("torrent:") or url_lower.endswith(".torrent")
+
+        if is_magnet or is_torrent:
+            # For magnet/torrent, create task with torrent download mode
+            raw_name = self.name_edit.text().strip() or "torrent_download"
+            name = sanitize_filename(Path(raw_name).name)
+
+            task = self._queue.create_task(
+                url=url,
+                filename=name,
+                save_path=save_path,
+                category="Torrents",
+            )
+            task.download_mode = "torrent"
+            task.total_size = 0
+
+            def _pc(t):
+                self._bridge.task_progress.emit(t.id)
+
+            def _sc(_t):
+                self._bridge.tasks_changed.emit()
+                self._bridge.stats_changed.emit()
+
+            task.progress_callback = _pc
+            task.state_callback = _sc
+
+            await self._queue.add(task)
+            self._bridge.tasks_changed.emit()
+            self._bridge.stats_changed.emit()
+            self.accept()
+            return
+
+        # For HTTP/HTTPS URLs, probe as usual
         self.ok_btn.setEnabled(False)
         try:
             meta = await self._engine.probe(url)

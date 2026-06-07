@@ -20,16 +20,24 @@ class UnsupportedProtocolError(ValueError):
 def normalize_url(url: str) -> str:
     """
     Normalize HTTP/HTTPS URL.
+    For magnet and torrent URLs, return as-is after validation.
     Kept for backward compatibility.
     """
     u = url.strip()
     if not u:
         raise ValueError("URL is empty")
     parsed = urlparse(u)
+    scheme = (parsed.scheme or "").lower()
+    
+    # Allow magnet and torrent schemes to pass through
+    if scheme in ("magnet", "torrent"):
+        return u
+    
     if not parsed.scheme:
         u = "https://" + u
         parsed = urlparse(u)
-    scheme = (parsed.scheme or "").lower()
+        scheme = (parsed.scheme or "").lower()
+    
     if scheme not in ("http", "https"):
         raise UnsupportedProtocolError(f"Only HTTP and HTTPS are supported (got {scheme!r})")
     netloc = parsed.netloc.lower()
