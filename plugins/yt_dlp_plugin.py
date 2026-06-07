@@ -391,9 +391,21 @@ class YtDlpPlugin(SpiderPlugin):
             opts["sleep_interval"] = playlist_sleep
             opts["max_sleep_interval"] = playlist_sleep * 2
 
+        # Enable impersonation for generic extractor to bypass Cloudflare
+
+
+        # This can be overridden by ctx.extra["extractor_args"]
+
+
         extractor_args = ctx.extra.get("extractor_args")
+
+
         if extractor_args:
             opts["extractor_args"] = extractor_args
+
+
+        else:
+            opts["extractor_args"] = {"generic": ["impersonate"]}
 
         if is_streaming:
             opts["live_from_start"] = ctx.extra.get("live_from_start", False)

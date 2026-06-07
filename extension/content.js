@@ -51,11 +51,11 @@ function detectStreamType(url = "") {
     return "";
 }
 
-// ─── FTP/Torrent link detection ───────────────────────────────────────────────
-function detectFtpAndTorrentLinks() {
+// ─── Streaming link detection ───────────────────────────────────────────────────
+function detectStreamingLinks() {
     /**
-     * Scan the page for FTP and torrent links and add download indicators.
-     * This runs periodically to catch dynamically added links.
+     * Scan the page for streaming media links (HLS, DASH, FTP, torrent, magnet)
+     * and add download indicators. This runs periodically to catch dynamically added links.
      */
     const links = document.querySelectorAll('a[href]');
     let foundCount = 0;
@@ -65,7 +65,9 @@ function detectFtpAndTorrentLinks() {
         if (!href) return;
         
         const streamType = detectStreamType(href);
-        if (streamType === 'ftp' || streamType === 'torrent' || streamType === 'magnet') {
+        // Detect all streaming types: HLS, DASH, FTP, torrent, magnet
+        if (streamType === 'ftp' || streamType === 'torrent' || streamType === 'magnet' ||
+            streamType === 'hls' || streamType === 'dash') {
             // Skip if already marked
             if (link.dataset.spiderMarked) return;
             
@@ -87,6 +89,8 @@ function detectFtpAndTorrentLinks() {
                 ${streamType === 'ftp' ? 'background: #0ea5e9; color: white;' : ''}
                 ${streamType === 'torrent' ? 'background: #8b5cf6; color: white;' : ''}
                 ${streamType === 'magnet' ? 'background: #f59e0b; color: white;' : ''}
+                ${streamType === 'hls' ? 'background: #ef4444; color: white;' : ''}
+                ${streamType === 'dash' ? 'background: #10b981; color: white;' : ''}
             `;
             
             // Add click handler to intercept download
@@ -100,7 +104,7 @@ function detectFtpAndTorrentLinks() {
     });
     
     if (foundCount > 0) {
-        console.log(`[Spider] Detected ${foundCount} FTP/torrent/magnet links`);
+        console.log(`[Spider] Detected ${foundCount} streaming links (HLS/DASH/FTP/torrent/magnet)`);
     }
 }
 
@@ -1266,7 +1270,7 @@ setTimeout(() => {
         // Start progressive detection if no videos found immediately
         progressiveVideoDetection();
     }
-    detectFtpAndTorrentLinks();
+    detectStreamingLinks();
     
     // Also check if current page is a known streaming site and show floating button
     const currentHost = window.location.hostname.toLowerCase();
@@ -1345,7 +1349,7 @@ const domObserver = new MutationObserver(() => {
         if (document.querySelector("video, audio") || detectionAttempts < MAX_DETECTION_ATTEMPTS) {
             detectVideos();
         }
-        detectFtpAndTorrentLinks();
+        detectStreamingLinks();
     }, 200); // Fast response to DOM changes
 });
 

@@ -7,6 +7,7 @@ aiohttp>=3.9.0
 aiofiles>=23.2.1
 requests>=2.31.0
 yt-dlp>=2024.1.0
+httpx[brotli]>=0.27.0
 pyperclip>=1.8.2
 mutagen>=1.47.0
 Pillow>=10.0.0
