@@ -92,20 +92,48 @@ function isMediaUrl(url = "", contentType = "") {
     // Extension check
     if (MEDIA_EXTENSIONS.has(urlExtension(url))) return true;
 
-    // Streaming indicators in URL path
+    // Enhanced streaming indicators in URL path
     const streamPatterns = [
-        ".m3u8", ".m3u", ".mpd", ".f4m",
-        "/hls/", "hls/stream", "hls/live", "hls/vod",
-        "/dash/", "dash/manifest",
-        "videoplayback", "googlevideo.com",
-        "manifest", "stream",
+        ".m3u8", ".m3u", ".mpd", ".f4m", ".ism", ".ismc", ".isml",
+        "/hls/", "hls/stream", "hls/live", "hls/vod", "hls/master",
+        "/dash/", "dash/manifest", "dash/stream",
+        "/smooth/", "smooth/streaming",
+        "/hds/", "hds/f4m",
+        "videoplayback", "googlevideo.com", "googleusercontent.com",
+        "manifest", "stream", "master.m3u8", "playlist.m3u8",
+        "index.m3u8", "chunk", "segment", "frag",
+        ".ts", ".m4s", ".f4v", ".webm",
+        "cdn", "cloudfront", "cloudflare", "akamai",
+        "highwinds", "fastly", "limelight", "level3",
+        "video", "media", "content", "asset"
     ];
     if (streamPatterns.some(p => urlLower.includes(p))) return true;
+
+    // Check for common streaming domains
+    const streamingDomains = [
+        "netflix.com", "hulu.com", "amazon.com", "primevideo.com",
+        "disneyplus.com", "disney+", "hbomax.com", "hbonow.com", "hbo.com",
+        "tv.apple.com", "paramountplus.com", "peacocktv.com",
+        "youtube.com", "youtu.be", "vimeo.com", "dailymotion.com",
+        "twitch.tv", "facebook.com", "instagram.com", "tiktok.com",
+        "twitter.com", "x.com", "reddit.com", "soundcloud.com",
+        "spotify.com", "music.apple.com", "pandora.com",
+        "hanime.tv", "crunchyroll.com", "funimation.com", "viki.com",
+        "9anime", "kissanime", "gogoanime", "animeseed"
+    ];
+    if (streamingDomains.some(domain => urlLower.includes(domain))) return true;
 
     // Content-Type check
     const ct = (contentType || "").toLowerCase().split(";")[0].trim();
     if (ct.startsWith("video/") || ct.startsWith("audio/")) return true;
     if (Object.keys(STREAM_CONTENT_TYPES).includes(ct)) return true;
+
+    // Additional content-type patterns
+    const contentPatterns = [
+        "mpegurl", "dash+xml", "f4m+xml", "ms-sstr+xml",
+        "octet-stream", "binary"
+    ];
+    if (contentPatterns.some(p => ct.includes(p))) return true;
 
     return false;
 }
@@ -127,14 +155,24 @@ function detectStreamType(url = "", contentType = "") {
     // Torrent files
     if (urlLower.endsWith(".torrent")) return "torrent";
 
-    // HLS
+    // HLS (enhanced detection)
     if (urlLower.includes(".m3u8") || urlLower.includes(".m3u") ||
         urlLower.includes("/hls/")  || urlLower.includes("hls/stream") ||
-        urlLower.includes("hls/live")) return "hls";
+        urlLower.includes("hls/live") || urlLower.includes("hls/vod") ||
+        urlLower.includes("hls/master") || urlLower.includes("master.m3u8") ||
+        urlLower.includes("playlist.m3u8") || urlLower.includes("index.m3u8")) return "hls";
 
-    // DASH
+    // DASH (enhanced detection)
     if (urlLower.includes(".mpd") || urlLower.includes("/dash/") ||
-        urlLower.includes("dash/manifest")) return "dash";
+        urlLower.includes("dash/manifest") || urlLower.includes("dash/stream")) return "dash";
+
+    // HDS (HTTP Dynamic Streaming)
+    if (urlLower.includes(".f4m") || urlLower.includes("/hds/") ||
+        urlLower.includes("hds/f4m")) return "hds";
+
+    // Smooth Streaming
+    if (urlLower.includes(".ism") || urlLower.includes("/smooth/") ||
+        urlLower.includes("smooth/streaming") || urlLower.includes("ms-sstr")) return "smooth";
 
     // Content-Type fallback
     const ct = (contentType || "").toLowerCase().split(";")[0].trim();
@@ -332,7 +370,7 @@ async function parseDASHManifest(url, reqHeaders = {}) {
     }
 }
 
-// ─── YouTube stream detection ─────────────────────────────────────────────────
+// ─── Platform-specific stream detection ─────────────────────────────────────────────
 
 function detectYouTubeStream(url) {
     if (!url.includes("youtube.com") && !url.includes("youtu.be")) return null;
@@ -358,6 +396,254 @@ function detectYouTubeStream(url) {
             ],
         };
     } catch { return null; }
+}
+
+function detectNetflixStream(url) {
+    if (!url.includes("netflix.com")) return null;
+    try {
+        const u = new URL(url);
+        // Netflix URLs are like: https://www.netflix.com/watch/12345678
+        const watchId = u.pathname.split("/").filter(Boolean).pop();
+        if (!watchId || isNaN(watchId)) return null;
+        return {
+            platform: "netflix",
+            videoId: watchId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectHuluStream(url) {
+    if (!url.includes("hulu.com")) return null;
+    try {
+        const u = new URL(url);
+        // Hulu URLs are like: https://www.hulu.com/watch/12345678
+        const watchId = u.pathname.split("/").filter(Boolean).pop();
+        if (!watchId) return null;
+        return {
+            platform: "hulu",
+            videoId: watchId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectAmazonPrimeStream(url) {
+    if (!url.includes("amazon.com") && !url.includes("primevideo.com")) return null;
+    try {
+        const u = new URL(url);
+        // Amazon Prime URLs are like: https://www.amazon.com/dp/BXXXXXXXXX or https://www.amazon.com/gp/video/detail/BXXXXXXXXX
+        const asin = u.searchParams.get("asin") ||
+                    u.pathname.split("/").filter(Boolean).pop();
+        if (!asin || !asin.startsWith("B")) return null;
+        return {
+            platform: "amazon",
+            videoId: asin,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectDisneyPlusStream(url) {
+    if (!url.includes("disneyplus.com") && !url.includes("disneyplus.com")) return null;
+    try {
+        const u = new URL(url);
+        // Disney+ URLs are like: https://www.disneyplus.com/video/12345678-1234-1234-1234-123456789012
+        const videoId = u.pathname.split("/").filter(Boolean).pop();
+        if (!videoId) return null;
+        return {
+            platform: "disney",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectHBOStream(url) {
+    if (!url.includes("hbomax.com") && !url.includes("hbonow.com") && !url.includes("hbo.com")) return null;
+    try {
+        const u = new URL(url);
+        const videoId = u.pathname.split("/").filter(Boolean).pop();
+        if (!videoId) return null;
+        return {
+            platform: "hbo",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectAppleTVStream(url) {
+    if (!url.includes("tv.apple.com")) return null;
+    try {
+        const u = new URL(url);
+        const videoId = u.pathname.split("/").filter(Boolean).pop();
+        if (!videoId) return null;
+        return {
+            platform: "appletv",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectParamountStream(url) {
+    if (!url.includes("paramountplus.com")) return null;
+    try {
+        const u = new URL(url);
+        const videoId = u.pathname.split("/").filter(Boolean).pop();
+        if (!videoId) return null;
+        return {
+            platform: "paramount",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectPeacockStream(url) {
+    if (!url.includes("peacocktv.com")) return null;
+    try {
+        const u = new URL(url);
+        const videoId = u.pathname.split("/").filter(Boolean).pop();
+        if (!videoId) return null;
+        return {
+            platform: "peacock",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "4K",    resolution: "2160p" },
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectHanimeStream(url) {
+    if (!url.includes("hanime.tv")) return null;
+    try {
+        const u = new URL(url);
+        // hanime.tv URLs are like: https://hanime.tv/videos/hentai/VIDEO_ID
+        const pathParts = u.pathname.split("/").filter(Boolean);
+        const videoId = pathParts.length > 1 ? pathParts[pathParts.length - 1] : "";
+        if (!videoId) return null;
+        return {
+            platform: "hanime",
+            videoId,
+            url,
+            type: "adaptive",
+            qualities: [
+                { label: "1080p", resolution: "1080p" },
+                { label: "720p",  resolution: "720p" },
+                { label: "480p",  resolution: "480p" },
+                { label: "360p",  resolution: "360p" },
+            ],
+        };
+    } catch { return null; }
+}
+
+function detectGenericStreamingSite(url) {
+    // Generic detection for other streaming platforms
+    const streamingDomains = [
+        "crunchyroll.com", "funimation.com", "viki.com",
+        "twitch.tv", "dailymotion.com", "vimeo.com",
+        "metacafe.com", "veoh.com", "blip.tv",
+        "break.com", "funnyordie.com", "vid.me",
+        "liveleak.com", "archive.org", "tiktok.com",
+        "facebook.com", "instagram.com", "twitter.com", "x.com",
+        "reddit.com", "imgur.com", "giphy.com",
+        "soundcloud.com", "mixcloud.com", "bandcamp.com",
+        "spotify.com", "apple.com", "music.amazon.com",
+        "pandora.com", "iheart.com", "tunein.com",
+        "audible.com", "librivox.org", "archive.org",
+        "hanime.tv", "9anime", "kissanime", "gogoanime", "animeseed",
+        "anime", "hentai", "pornhub", "xvideos", "xhamster"
+    ];
+    
+    const urlLower = url.toLowerCase();
+    for (const domain of streamingDomains) {
+        if (urlLower.includes(domain)) {
+            return {
+                platform: domain.split(".")[0],
+                videoId: "",  // Generic detection doesn't extract specific IDs
+                url,
+                type: "adaptive",
+                qualities: [
+                    { label: "1080p", resolution: "1080p" },
+                    { label: "720p",  resolution: "720p" },
+                    { label: "480p",  resolution: "480p" },
+                ],
+            };
+        }
+    }
+    return null;
+}
+
+// Unified platform detection function
+function detectPlatformStream(url) {
+    return detectYouTubeStream(url) ||
+           detectNetflixStream(url) ||
+           detectHuluStream(url) ||
+           detectAmazonPrimeStream(url) ||
+           detectDisneyPlusStream(url) ||
+           detectHBOStream(url) ||
+           detectAppleTVStream(url) ||
+           detectParamountStream(url) ||
+           detectPeacockStream(url) ||
+           detectHanimeStream(url) ||
+           detectGenericStreamingSite(url);
 }
 
 // ─── Cookie extraction ────────────────────────────────────────────────────────
@@ -619,17 +905,18 @@ function buildQualities(url) {
         }
     }
 
-    // 3. YouTube (informational — yt-dlp does the actual download)
+    // 3. Platform streaming (informational — yt-dlp does the actual download)
     for (const [storedUrl, info] of videoStreams.entries()) {
-        if (info?.platform === "youtube" && (urlsMatch(url, storedUrl) || url.includes(info.videoId || ""))) {
+        if (info?.platform && (urlsMatch(url, storedUrl) || url.includes(info.videoId || ""))) {
+            const platformName = info.platform.charAt(0).toUpperCase() + info.platform.slice(1);
             return info.qualities.map(q => ({
                 url:        url,
                 resolution: q.resolution,
                 label:      q.label,
-                itag:       q.itag,
+                itag:       q.itag || "",
                 fps:        "N/A",
                 codec:      "H.264+AAC",
-                type:       "YouTube",
+                type:       platformName,
             }));
         }
     }
@@ -780,12 +1067,12 @@ chrome.action.onClicked.addListener(tab => {
             filename: sanitizeFilenameBasic(tab.title || "download"),
         };
         
-        // Detect YouTube URLs and mark them for yt-dlp
-        const ytInfo = detectYouTubeStream(tab.url);
-        if (ytInfo) {
-            payload.streamType = "youtube";
+        // Detect platform streaming URLs and mark them for yt-dlp
+        const platformInfo = detectPlatformStream(tab.url);
+        if (platformInfo) {
+            payload.streamType = platformInfo.platform;
             payload.downloadMode = "ytdlp";
-            payload.videoInfo = ytInfo;
+            payload.videoInfo = platformInfo;
         }
         
         // Detect FTP, magnet, and torrent URLs
@@ -839,12 +1126,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         originalUrl: tab?.url,
     };
     
-    // Detect YouTube URLs and mark them for yt-dlp
-    const ytInfo = detectYouTubeStream(url);
-    if (ytInfo) {
-        payload.streamType = "youtube";
+    // Detect platform streaming URLs and mark them for yt-dlp
+    const platformInfo = detectPlatformStream(url);
+    if (platformInfo) {
+        payload.streamType = platformInfo.platform;
         payload.downloadMode = "ytdlp";
-        payload.videoInfo = ytInfo;
+        payload.videoInfo = platformInfo;
     }
     
     // Detect FTP, magnet, and torrent URLs
@@ -915,6 +1202,28 @@ chrome.webRequest.onHeadersReceived.addListener(
             streamType:    detectStreamType(url, contentType),
         };
 
+        // Notify content script about detected media (IDM-style detection)
+        if (mediaItem.streamType || contentType.startsWith("video/") || contentType.startsWith("audio/")) {
+            try {
+                const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tabs[0]?.id && tabs[0]?.url) {
+                    // Only notify if the detected URL is related to the current tab
+                    const tabUrl = tabs[0].url.toLowerCase();
+                    const urlDomain = new URL(url).hostname.toLowerCase();
+                    const tabDomain = new URL(tabUrl).hostname.toLowerCase();
+                    
+                    if (urlDomain === tabDomain || tabUrl.includes("blob:")) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            type: "MEDIA_URL_DETECTED",
+                            mediaUrl: url,
+                            streamType: mediaItem.streamType,
+                            contentType: contentType
+                        }).catch(() => {}); // Ignore if content script not ready
+                    }
+                }
+            } catch (e) {}
+        }
+
         // ── Parse HLS ─────────────────────────────────────────────────────────
         const urlLower = url.toLowerCase();
         if (urlLower.includes(".m3u8") || urlLower.includes(".m3u") ||
@@ -928,6 +1237,18 @@ chrome.webRequest.onHeadersReceived.addListener(
                 mediaItem.streamType = "hls";
                 hlsStreams.set(url, hlsInfo);
                 console.log(`[Spider] HLS detected: ${url} (${hlsInfo.variants?.length} variants)`);
+                
+                // Notify content script about detected stream
+                try {
+                    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (tabs[0]?.id) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            type: "STREAM_MANIFEST_DETECTED",
+                            manifestUrl: url,
+                            streamType: "hls"
+                        }).catch(() => {}); // Ignore if content script not ready
+                    }
+                } catch (e) {}
             }
         }
 
@@ -942,14 +1263,26 @@ chrome.webRequest.onHeadersReceived.addListener(
                 mediaItem.streamType = "dash";
                 videoStreams.set(url, dashInfo);
                 console.log(`[Spider] DASH detected: ${url} (${dashInfo.variants?.length} representations)`);
+                
+                // Notify content script about detected stream
+                try {
+                    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (tabs[0]?.id) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            type: "STREAM_MANIFEST_DETECTED",
+                            manifestUrl: url,
+                            streamType: "dash"
+                        }).catch(() => {}); // Ignore if content script not ready
+                    }
+                } catch (e) {}
             }
         }
 
-        // ── Detect YouTube ────────────────────────────────────────────────────
-        const ytInfo = detectYouTubeStream(url);
-        if (ytInfo) {
-            mediaItem.videoInfo = ytInfo;
-            videoStreams.set(url, ytInfo);
+        // ── Detect platform streaming ────────────────────────────────────────────
+        const platformInfo = detectPlatformStream(url);
+        if (platformInfo) {
+            mediaItem.videoInfo = platformInfo;
+            videoStreams.set(url, platformInfo);
         }
 
         // Maintain capped media list

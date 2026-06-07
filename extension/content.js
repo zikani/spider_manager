@@ -152,6 +152,16 @@ function detectFtpAndTorrentLinks() {
                     streamType:  type,
                     pageUrl:     window.location.href,
                 });
+                
+                // For hanime.tv, also create floating button immediately
+                if (window.location.hostname.includes("hanime.tv")) {
+                    console.log("[Spider] Hanime.tv HLS manifest detected via fetch:", url);
+                    // Remove existing floating button if any
+                    if (floatingButton && floatingButton.parentNode) {
+                        floatingButton.remove();
+                    }
+                    createFloatingDownloadButton(url, type);
+                }
             } catch {}
         }
         return origFetch.apply(this, args);
@@ -172,6 +182,16 @@ function detectFtpAndTorrentLinks() {
                     streamType:  type,
                     pageUrl:     window.location.href,
                 });
+                
+                // For hanime.tv, also create floating button immediately
+                if (window.location.hostname.includes("hanime.tv")) {
+                    console.log("[Spider] Hanime.tv HLS manifest detected via XHR:", url);
+                    // Remove existing floating button if any
+                    if (floatingButton && floatingButton.parentNode) {
+                        floatingButton.remove();
+                    }
+                    createFloatingDownloadButton(String(url), type);
+                }
             } catch {}
         }
         return origOpen.call(this, method, url, ...rest);
@@ -945,6 +965,173 @@ function detectVideos() {
             el.shadowRoot.querySelectorAll("video").forEach(createOverlayButton);
         }
     });
+
+    // Look for <audio> elements as well (for audio-only streaming)
+    document.querySelectorAll("audio").forEach(createOverlayButton);
+
+    // Look for iframes that might contain video players
+    document.querySelectorAll("iframe").forEach(iframe => {
+        try {
+            // Try to access iframe content if same-origin
+            if (iframe.contentDocument) {
+                iframe.contentDocument.querySelectorAll("video").forEach(createOverlayButton);
+                iframe.contentDocument.querySelectorAll("audio").forEach(createOverlayButton);
+            }
+        } catch (e) {
+            // Cross-origin iframe - can't access content, but we can still mark it
+            console.log("[Spider] Cross-origin iframe detected, skipping content access");
+        }
+    });
+
+    // Look for common video player container classes
+    const playerSelectors = [
+        ".video-player",
+        ".player-container",
+        ".video-container",
+        ".player-wrapper",
+        "[data-player]",
+        ".html5-video-player",
+        ".player",
+        ".jw-player",
+        ".video-js",
+        ".plyr",
+        ".videojs",
+        ".video-player-container",
+        ".main-video",
+        ".video-element",
+        "[role='region'][aria-label*='video']",
+        "[aria-label*='Video player']",
+        "[data-video]",
+        ".hls-player",
+        ".dash-player",
+        // Anime site specific
+        ".video-wrapper",
+        ".video-wrapper-1",
+        ".video-container-fluid",
+        "#hls-player",
+        "#video-player",
+        ".vjs-tech",
+        ".jwplayer",
+        ".video-player-hls",
+        // Hanime.tv specific
+        ".player-wrapper-1",
+        ".player-wrapper-2",
+        "[id*='player']",
+        "[class*='player']"
+    ];
+
+    playerSelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(container => {
+            // Check if container has video/audio elements
+            container.querySelectorAll("video, audio").forEach(createOverlayButton);
+            // If container exists but no video/audio found, add overlay to container itself
+            if (!container.querySelector("video, audio")) {
+                createOverlayButtonForContainer(container);
+            }
+        });
+    });
+
+    // Look for object/embed elements (legacy players)
+    document.querySelectorAll("object[type*='video'], embed[type*='video']").forEach(createOverlayButton);
+
+    // Look for canvas elements (some players use canvas for rendering)
+    document.querySelectorAll("canvas").forEach(canvas => {
+        const parent = canvas.closest('[class*="video"], [class*="player"], [id*="video"], [id*="player"]');
+        if (parent) {
+            createOverlayButtonForContainer(parent);
+        }
+    });
+}
+
+// ─── Create overlay for container when video element not found ───────────────
+function createOverlayButtonForContainer(container) {
+    // Skip if already has overlay
+    if (container.querySelector(`.${BTN_CLASS}`)) return;
+    
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return; // Hidden container
+
+    const streamType = detectStreamType(window.location.href);
+    const btn = document.createElement("div");
+    btn.className = BTN_CLASS;
+    btn.innerHTML = `<span>⬇</span>`;
+    btn.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 999999;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: bold;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.2s ease;
+    `;
+
+    btn.addEventListener("mouseenter", () => {
+        btn.style.background = "rgba(0, 0, 0, 0.9)";
+        btn.style.transform = "scale(1.1)";
+    });
+
+    btn.addEventListener("mouseleave", () => {
+        btn.style.background = "rgba(0, 0, 0, 0.7)";
+        btn.style.transform = "scale(1)";
+    });
+
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        downloadUrl(window.location.href, window.location.href, streamType || "hls");
+    });
+
+    // Ensure container has position for absolute positioning
+    const computedStyle = window.getComputedStyle(container);
+    if (computedStyle.position === "static") {
+        container.style.position = "relative";
+    }
+
+    container.appendChild(btn);
+    
+    // Store for cleanup
+    overlayButtons.push({
+        button: btn,
+        video: container,
+        cleanup: () => btn.remove()
+    });
+    
+    console.log("[Spider] Added overlay to video container:", container);
+}
+
+// ─── Progressive video detection with automatic retry logic ───────────────────
+let detectionAttempts = 0;
+const MAX_DETECTION_ATTEMPTS = 8;
+
+function progressiveVideoDetection() {
+    detectionAttempts++;
+    
+    // Always run detection
+    detectVideos();
+
+    // If we found videos, stop retrying
+    if (document.querySelector("video, audio")) {
+        console.log(`[Spider] Videos detected on attempt ${detectionAttempts}`);
+        return;
+    }
+
+    // If no videos found and we haven't exceeded max attempts, retry
+    if (detectionAttempts < MAX_DETECTION_ATTEMPTS) {
+        console.log(`[Spider] No videos found yet, retrying... (${detectionAttempts}/${MAX_DETECTION_ATTEMPTS})`);
+        setTimeout(progressiveVideoDetection, 1500); // Fixed 1.5s interval for consistent detection
+    } else {
+        console.log("[Spider] Max automatic detection attempts reached");
+    }
 }
 
 // ─── Message listener ─────────────────────────────────────────────────────────
@@ -954,24 +1141,225 @@ chrome.runtime.onMessage.addListener((msg) => {
         // Background discovered a stream for this page — update any video overlay badges
         detectVideos();
     }
+    if (msg.type === "STREAM_MANIFEST_DETECTED") {
+        console.log("[Spider] Stream manifest detected:", msg.manifestUrl, msg.streamType);
+        detectVideos();
+        // Create a floating action button for network-detected streams
+        createFloatingDownloadButton(msg.manifestUrl, msg.streamType);
+    }
+    if (msg.type === "MEDIA_URL_DETECTED") {
+        console.log("[Spider] Media URL detected:", msg.mediaUrl, msg.streamType);
+        detectVideos();
+        // Create a floating action button for network-detected media
+        createFloatingDownloadButton(msg.mediaUrl, msg.streamType);
+    }
 });
+
+// ─── Floating download button (for network-detected media) ────────────────────
+let floatingButton = null;
+let floatingButtonTimeout = null;
+
+function createFloatingDownloadButton(url, streamType) {
+    if (floatingButton && floatingButton.parentNode) {
+        floatingButton.remove(); // Remove existing button
+    }
+    
+    // Clear any existing auto-hide timeout
+    if (floatingButtonTimeout) {
+        clearTimeout(floatingButtonTimeout);
+        floatingButtonTimeout = null;
+    }
+
+    // Create floating button
+    floatingButton = document.createElement("div");
+    floatingButton.id = "spider-floating-download-btn";
+    
+    // Check if this is hanime.tv for persistent button
+    const isHanime = window.location.hostname.includes("hanime.tv");
+    
+    floatingButton.innerHTML = `
+        <div style="
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2147483647;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        ">
+            <span style="font-size: 18px;">⬇</span>
+            <span>${isHanime ? "Download (H-anime)" : "Download Video"}</span>
+        </div>
+    `;
+
+    const button = floatingButton.querySelector("div");
+    
+    button.addEventListener("mouseenter", () => {
+        button.style.transform = "translateY(-2px)";
+        button.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.4)";
+    });
+
+    button.addEventListener("mouseleave", () => {
+        button.style.transform = "translateY(0)";
+        button.style.boxShadow = "0 4px 15px rgba(0, 0, 0, 0.3)";
+    });
+
+    button.addEventListener("click", () => {
+        downloadUrl(url, window.location.href, streamType || "hls");
+        // Don't remove button for hanime.tv, just hide temporarily
+        if (!isHanime) {
+            floatingButton.remove();
+            floatingButton = null;
+        } else {
+            // For hanime, show feedback but keep button
+            button.innerHTML = `
+                <span style="font-size: 18px;">✓</span>
+                <span>Download Started</span>
+            `;
+            setTimeout(() => {
+                if (floatingButton && floatingButton.parentNode) {
+                    button.innerHTML = `
+                        <span style="font-size: 18px;">⬇</span>
+                        <span>Download (H-anime)</span>
+                    `;
+                }
+            }, 2000);
+        }
+    });
+
+    // Auto-hide after 15 seconds (except for hanime.tv)
+    if (!isHanime) {
+        floatingButtonTimeout = setTimeout(() => {
+            if (floatingButton && floatingButton.parentNode) {
+                floatingButton.style.transition = "opacity 0.5s ease";
+                button.style.opacity = "0";
+                setTimeout(() => {
+                    if (floatingButton && floatingButton.parentNode) {
+                        floatingButton.remove();
+                        floatingButton = null;
+                    }
+                }, 500);
+            }
+        }, 15000);
+    }
+
+    document.body.appendChild(floatingButton);
+    console.log("[Spider] Floating download button created for:", url);
+}
 
 // ─── Auto-detect on page load ─────────────────────────────────────────────────
 setTimeout(() => {
-    if (document.querySelector("video")) detectVideos();
+    if (document.querySelector("video, audio")) {
+        detectVideos();
+    } else {
+        // Start progressive detection if no videos found immediately
+        progressiveVideoDetection();
+    }
     detectFtpAndTorrentLinks();
-}, 1000);
+    
+    // Also check if current page is a known streaming site and show floating button
+    const currentHost = window.location.hostname.toLowerCase();
+    const streamingHosts = [
+        "youtube.com", "youtu.be", "netflix.com", "hulu.com", "amazon.com",
+        "primevideo.com", "disneyplus.com", "hbomax.com", "hbonow.com", "hbo.com",
+        "tv.apple.com", "paramountplus.com", "peacocktv.com", "twitch.tv",
+        "vimeo.com", "dailymotion.com", "facebook.com", "instagram.com",
+        "tiktok.com", "twitter.com", "x.com", "reddit.com", "hanime.tv",
+        "anime", "crunchyroll.com", "funimation.com", "viki.com",
+        "9anime", "kissanime", "gogoanime", "animeseed",
+        "stream", "watch", "video", "tube", "vid"
+    ];
+    
+    if (streamingHosts.some(host => currentHost.includes(host))) {
+        console.log("[Spider] Detected known streaming site, showing download button");
+        // For hanime.tv specifically, try to extract the video URL from the page
+        let videoUrl = window.location.href;
+        
+        // Try to find video source in the page
+        if (currentHost.includes("hanime.tv")) {
+            // Look for video elements and get their src
+            const videoEl = document.querySelector("video");
+            if (videoEl && videoEl.src) {
+                videoUrl = videoEl.src;
+            } else {
+                // Look for source elements
+                const sourceEl = document.querySelector("source");
+                if (sourceEl && sourceEl.src) {
+                    videoUrl = sourceEl.src;
+                }
+            }
+        }
+        
+        createFloatingDownloadButton(videoUrl, detectStreamType(videoUrl));
+    }
+}, 500); // Fast initial detection
+
+// ─── Hanime.tv specific detection ───────────────────────────────────────────────
+if (window.location.hostname.includes("hanime.tv")) {
+    console.log("[Spider] Hanime.tv detected, setting up enhanced detection");
+    
+    // Hanime.tv often loads video after page load, so check periodically
+    setInterval(() => {
+        const videoEl = document.querySelector("video");
+        if (videoEl && videoEl.src) {
+            const streamType = detectStreamType(videoEl.src);
+            console.log("[Spider] Hanime.tv video detected:", videoEl.src, streamType);
+            
+            // Remove existing floating button if any
+            if (floatingButton && floatingButton.parentNode) {
+                floatingButton.remove();
+            }
+            
+            createFloatingDownloadButton(videoEl.src, streamType);
+        }
+    }, 2000); // Check every 2 seconds
+}
+
+// ─── Additional delayed detection for slow-loading players ────────────────────
+setTimeout(() => {
+    console.log("[Spider] Running delayed video detection for slow-loading players");
+    detectVideos();
+}, 3000); // Additional check after 3 seconds
+
+setTimeout(() => {
+    console.log("[Spider] Running final video detection");
+    detectVideos();
+}, 7000); // Final check after 7 seconds
 
 // ─── MutationObserver — debounced ─────────────────────────────────────────────
 let mutationTimer;
 const domObserver = new MutationObserver(() => {
     clearTimeout(mutationTimer);
     mutationTimer = setTimeout(() => {
-        if (document.querySelector("video")) detectVideos();
+        if (document.querySelector("video, audio") || detectionAttempts < MAX_DETECTION_ATTEMPTS) {
+            detectVideos();
+        }
         detectFtpAndTorrentLinks();
-    }, 400);
+    }, 200); // Fast response to DOM changes
 });
+
 domObserver.observe(document.body || document.documentElement, {
     childList: true,
     subtree:   true,
+    attributes: true, // Also watch for attribute changes that might trigger player loading
+    attributeFilter: ["src", "data-src"] // Specifically watch for src changes
+});
+
+// ─── Visibility change detection ───────────────────────────────────────────────
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+        console.log("[Spider] Page became visible, re-detecting videos");
+        detectVideos();
+    }
 });
