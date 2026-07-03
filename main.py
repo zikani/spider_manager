@@ -46,14 +46,18 @@ def _cleanup_temp_files():
         try:
             from utils.file_categorizer import DownloadPathManager
             from config.settings import get_download_directory
+            from utils.logger import get_logger
             
+            log = get_logger(__name__)
             path_manager = DownloadPathManager(get_download_directory())
             hours = app_settings.get_temp_cleanup_hours()
             cleaned = path_manager.cleanup_temp_files(hours)
             if cleaned > 0:
-                print(f"Cleaned up {cleaned} temporary files older than {hours} hours")
+                log.info(f"Cleaned up {cleaned} temporary files older than {hours} hours")
         except Exception as e:
-            print(f"Error cleaning up temp files: {e}")
+            from utils.logger import get_logger
+            log = get_logger(__name__)
+            log.error(f"Error cleaning up temp files: {e}")
 
 
 def main():

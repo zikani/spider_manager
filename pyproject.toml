@@ -35,3 +35,6 @@ strict = true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "benchmark: marks tests as performance benchmarks"
+]

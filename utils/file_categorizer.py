@@ -1,10 +1,15 @@
 """
 File Categorizer - Automatically categorize files by type for organized downloads.
+Enhanced with custom rules, import/export, and priority-based categorization.
 """
  
 import os
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from dataclasses import dataclass, asdict
+from enum import Enum
+
 from utils.logger import get_logger
  
 log = get_logger(__name__)
@@ -19,11 +24,83 @@ class FileCategory:
     VIDEO = "Video"
     AUDIO = "Audio"
     OTHER = "Other"
- 
- 
-class FileCategorizer:
-    """Categorizes files based on extension and MIME type."""
- 
+    
+    @classmethod
+    def all_categories(cls) -> List[str]:
+        """Get list of all predefined categories."""
+        return [
+            cls.PROGRAMS, cls.DOCUMENTS, cls.COMPRESSED,
+            cls.PICTURES, cls.VIDEO, cls.AUDIO, cls.OTHER
+        ]
+
+
+class RuleType(Enum):
+    """Types of categorization rules."""
+    EXTENSION = "extension"
+    MIME_TYPE = "mime_type"
+    FILENAME_PATTERN = "filename_pattern"
+    URL_PATTERN = "url_pattern"
+    SIZE_RANGE = "size_range"
+
+
+@dataclass
+class CategorizationRule:
+    """Custom categorization rule."""
+    name: str
+    rule_type: RuleType
+    pattern: str
+    category: str
+    priority: int = 50  # Higher priority rules are checked first
+    enabled: bool = True
+    size_min: Optional[int] = None  # For size range rules (bytes)
+    size_max: Optional[int] = None  # For size range rules (bytes)
+    
+    def matches(self, filename: str, mime_type: Optional[str] = None, 
+                url: Optional[str] = None, size: Optional[int] = None) -> bool:
+        """Check if this rule matches the given criteria."""
+        if not self.enabled:
+            return False
+        
+        import re
+        
+        if self.rule_type == RuleType.EXTENSION:
+            ext = Path(filename).suffix.lower()
+            return ext == self.pattern.lower() or filename.lower().endswith(self.pattern.lower())
+        
+        elif self.rule_type == RuleType.MIME_TYPE:
+            if mime_type:
+                return self.pattern.lower() in mime_type.lower()
+            return False
+        
+        elif self.rule_type == RuleType.FILENAME_PATTERN:
+            try:
+                return re.search(self.pattern, filename, re.IGNORECASE) is not None
+            except re.error:
+                return self.pattern.lower() in filename.lower()
+        
+        elif self.rule_type == RuleType.URL_PATTERN:
+            if url:
+                try:
+                    return re.search(self.pattern, url, re.IGNORECASE) is not None
+                except re.error:
+                    return self.pattern.lower() in url.lower()
+            return False
+        
+        elif self.rule_type == RuleType.SIZE_RANGE:
+            if size is not None:
+                if self.size_min is not None and size < self.size_min:
+                    return False
+                if self.size_max is not None and size > self.size_max:
+                    return False
+                return True
+            return False
+        
+        return False
+
+
+class EnhancedCategorizer:
+    """Enhanced file categorizer with custom rules and priority support."""
+
     CATEGORY_MAP = {
         FileCategory.PROGRAMS: [
             '.exe', '.msi', '.app', '.dmg', '.deb', '.rpm', '.apk', '.ipa',
@@ -59,7 +136,80 @@ class FileCategorizer:
             '.tta', '.alac', '.amr', '.3ga', '.mid', '.midi', '.gsm'
         ]
     }
- 
+
+    def __init__(self, rules_file: Optional[str] = None):
+        """
+        Initialize EnhancedCategorizer.
+        
+        Args:
+            rules_file: Path to custom rules JSON file. If None, uses default location.
+        """
+        self.custom_rules: List[CategorizationRule] = []
+        self.rules_file = rules_file
+        if rules_file:
+            self.load_rules(rules_file)
+
+    def add_rule(self, rule: CategorizationRule) -> None:
+        """Add a custom categorization rule."""
+        self.custom_rules.append(rule)
+        # Sort by priority (higher first)
+        self.custom_rules.sort(key=lambda r: r.priority, reverse=True)
+        log.debug("Added categorization rule: %s", rule.name)
+
+    def remove_rule(self, rule_name: str) -> bool:
+        """Remove a custom rule by name."""
+        for i, rule in enumerate(self.custom_rules):
+            if rule.name == rule_name:
+                self.custom_rules.pop(i)
+                log.debug("Removed categorization rule: %s", rule_name)
+                return True
+        return False
+
+    def get_rule(self, rule_name: str) -> Optional[CategorizationRule]:
+        """Get a custom rule by name."""
+        for rule in self.custom_rules:
+            if rule.name == rule_name:
+                return rule
+        return None
+
+    def get_all_rules(self) -> List[CategorizationRule]:
+        """Get all custom rules."""
+        return self.custom_rules.copy()
+
+    def categorize(
+        self,
+        filename: str,
+        mime_type: Optional[str] = None,
+        url: Optional[str] = None,
+        size: Optional[int] = None
+    ) -> str:
+        """
+        Categorize a file using custom rules with priority, then fallback to default.
+        
+        Args:
+            filename: File name or path
+            mime_type: Optional MIME type
+            url: Optional URL (for URL pattern rules)
+            size: Optional file size in bytes (for size range rules)
+            
+        Returns:
+            Category string
+        """
+        # Check custom rules first (sorted by priority)
+        for rule in self.custom_rules:
+            if rule.matches(filename, mime_type, url, size):
+                log.debug("File '%s' matched custom rule '%s' -> %s", 
+                         filename, rule.name, rule.category)
+                return rule.category
+        
+        # Fallback to default categorization
+        if mime_type:
+            category = self.categorize_by_mime(mime_type)
+            if category != FileCategory.OTHER:
+                return category
+        
+        return self.categorize_by_extension(filename)
+
     @classmethod
     def categorize_by_extension(cls, filename: str) -> str:
         """Categorize file based on its extension."""
@@ -114,6 +264,79 @@ class FileCategorizer:
                 return category
  
         return cls.categorize_by_extension(filename)
+
+    def save_rules(self, file_path: Optional[str] = None) -> None:
+        """
+        Save custom rules to JSON file.
+        
+        Args:
+            file_path: Path to save rules. If None, uses the rules_file from initialization.
+        """
+        target_path = file_path or self.rules_file
+        if not target_path:
+            raise ValueError("No file path specified for saving rules")
+        
+        rules_data = []
+        for rule in self.custom_rules:
+            rule_dict = asdict(rule)
+            rule_dict['rule_type'] = rule.rule_type.value
+            rules_data.append(rule_dict)
+        
+        with open(target_path, 'w', encoding='utf-8') as f:
+            json.dump(rules_data, f, indent=2, ensure_ascii=False)
+        
+        log.info("Saved %d categorization rules to %s", len(self.custom_rules), target_path)
+
+    def load_rules(self, file_path: str) -> int:
+        """
+        Load custom rules from JSON file.
+        
+        Args:
+            file_path: Path to load rules from
+            
+        Returns:
+            Number of rules loaded
+        """
+        with open(file_path, 'r', encoding='utf-8') as f:
+            rules_data = json.load(f)
+        
+        loaded = 0
+        for rule_dict in rules_data:
+            try:
+                rule_dict['rule_type'] = RuleType(rule_dict['rule_type'])
+                rule = CategorizationRule(**rule_dict)
+                self.add_rule(rule)
+                loaded += 1
+            except (KeyError, ValueError) as e:
+                log.warning("Failed to load rule: %s - %s", rule_dict.get('name', 'unknown'), e)
+        
+        log.info("Loaded %d categorization rules from %s", loaded, file_path)
+        return loaded
+
+    def export_rules(self, file_path: str) -> None:
+        """
+        Export custom rules to JSON file.
+        
+        Args:
+            file_path: Path to export rules to
+        """
+        self.save_rules(file_path)
+
+    def import_rules(self, file_path: str, merge: bool = True) -> int:
+        """
+        Import custom rules from JSON file.
+        
+        Args:
+            file_path: Path to import rules from
+            merge: If True, merges with existing rules. If False, replaces all rules.
+            
+        Returns:
+            Number of rules imported
+        """
+        if not merge:
+            self.custom_rules.clear()
+        
+        return self.load_rules(file_path)
  
  
 class DownloadPathManager:

@@ -271,17 +271,17 @@ class HTTPHandler(ProtocolHandler):
         """
         Download file via HTTP.
         
-        This is a placeholder that will be integrated with the download engine.
-        For now, it returns basic metadata.
+        Note: HTTP downloads are currently handled directly by DownloadEngine.
+        This handler is reserved for future protocol-specific optimizations
+        and will be integrated when the download engine is refactored to use
+        the protocol handler architecture more extensively.
         """
-        # TODO: Integrate with download_engine.py
-        # This will be completed in Step 4 when we refactor the download engine
-        return {
-            "url": url,
-            "protocol": "http",
-            "status": "pending",
-            "message": "HTTP handler not yet integrated with download engine"
-        }
+        # HTTP downloads are handled by DownloadEngine.download()
+        # This handler will be enhanced in future versions for protocol-specific features
+        raise NotImplementedError(
+            "HTTP downloads are currently handled by DownloadEngine. "
+            "This handler will be integrated in a future refactoring."
+        )
 
 
 class HTTPSHandler(HTTPHandler):
@@ -305,18 +305,18 @@ class HTTPSHandler(HTTPHandler):
     async def download(self, url: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """
         Download file via HTTPS.
-
-        This is a placeholder that will be integrated with the download engine.
-        For now, it returns basic metadata.
+        
+        Note: HTTPS downloads are currently handled directly by DownloadEngine.
+        This handler is reserved for future protocol-specific optimizations
+        and will be integrated when the download engine is refactored to use
+        the protocol handler architecture more extensively.
         """
-        # TODO: Integrate with download_engine.py
-        # This will be completed in Step 4 when we refactor the download engine
-        return {
-            "url": url,
-            "protocol": "https",
-            "status": "pending",
-            "message": "HTTPS handler not yet integrated with download engine"
-        }
+        # HTTPS downloads are handled by DownloadEngine.download()
+        # This handler will be enhanced in future versions for protocol-specific features
+        raise NotImplementedError(
+            "HTTPS downloads are currently handled by DownloadEngine. "
+            "This handler will be integrated in a future refactoring."
+        )
 
 
 class TorrentHandler(ProtocolHandler):

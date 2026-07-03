@@ -1,172 +1,79 @@
-# Spider Manager
+<h4 align="right">
+  English
+</h4>
 
-A professional internet download manager built with Python 3.11+ and PyQt6. Inspired by IDM (Internet Download Manager), it provides multi-segment parallel downloading, browser integration, scheduling, and a polished dark/light UI.
+> [!NOTE]
+> Spider Manager is currently in active development for v2.0.0 with enhanced protocol support and UI improvements.
 
+<!-- PROJECT LOGO -->
+<div align="center">
+
+### Professional internet download manager built with Python and PyQt6
+
+##### [Documentation](docs/USER_GUIDE.md) · [Report Bug](issues) · [Request Feature](issues)
+
+</div>
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
+
+* A professional download manager built with modern Python technologies
+* Inspired by IDM (Internet Download Manager) with multi-segment parallel downloading
+* Built with extensibility in mind through a comprehensive plugin system
+* Focused on performance, reliability, and user experience
+
+|    Platform    | Required Version |  Architectures   | Compatible |
+|:--------------:|:----------------:|:----------------:|:----------:|
+| 🪟 **Windows** |     `10+`        | `x86_64`         |     ✅      |
+|  🐧 **Linux**  |     (Planned)    | `x86_64`/`arm64` |     🚧      |
+|  🍎 **macOS**  |     (Planned)    | `x86_64`/`arm64` |     🚧      |
+
+> [!WARNING]
+> Qt `6.6+` no longer supports CPUs without the `AVX` instruction set.
+
+> [!TIP]
+> **Cross-platform support** is planned for v2.0.0. Currently Windows is the primary supported platform.
+
+<!-- FEATURES -->
 ## Features
 
-- **Multi-Segment Downloading**: Automatically splits files into multiple segments for faster downloads
-- **Speed Limiting**: Global bandwidth control with real-time monitoring
-- **Browser Integration**: Chrome and Firefox extension support
-- **Video/Audio Support**: yt-dlp integration for YouTube, Vimeo, and other streaming sites
-- **FTP/FTPS Support**: Full FTP and FTPS protocol support with authentication and resume
-- **BitTorrent Support**: Magnet link and .torrent file support with peer management
-- **Scheduling**: Time-based download windows for off-peak downloading
-- **File Categorization**: Automatic organization by file type
-- **Sound Notifications**: Audio alerts for download events
-- **System Tray**: Minimize to tray with speed badge
-- **Themes**: Dark and light theme support
-- **Resume Support**: Automatic resume of interrupted downloads
+* **Multi-Segment Downloading**: Automatically splits files into multiple segments for faster downloads ⚡
+* **Speed Limiting**: Global bandwidth control with real-time monitoring 📊
+* **Browser Integration**: Chrome and Firefox extension support 🦊
+* **Video/Audio Support**: yt-dlp integration for YouTube, Vimeo, and other streaming sites 🎬
+* **FTP/FTPS Support**: Full FTP and FTPS protocol support with authentication and resume 📁
+* **BitTorrent Support**: Magnet link and .torrent file support with peer management 🔗
+* **Scheduling**: Time-based download windows for off-peak downloading ⏰
+* **File Categorization**: Automatic organization by file type 📂
+* **Sound Notifications**: Audio alerts for download events 🔔
+* **System Tray**: Minimize to tray with speed badge 🖥️
+* **Themes**: Dark and light theme support 🎨
+* **Resume Support**: Automatic resume of interrupted downloads 🔄
 
-## Installation
+<!-- ROADMAP -->
+## Roadmap
 
-### From Source
+- ❌ Download history system with search and export
+- ❌ Advanced tagging and labeling system
+- ❌ Cloud storage integration (Google Drive, Dropbox, OneDrive)
+- ❌ Performance optimization (connection pooling, memory management)
+- ❌ Cross-platform support (Linux, macOS)
+- ❌ Enhanced statistics dashboard
+- ❌ AI-powered download acceleration
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/spider-manager.git
-cd spider_manager
+Visit [Open issues](issues) to see all requested features (and known issues).
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-python main.py
-```
-
-### Requirements
-
-- Python 3.11 or higher
-- PyQt6 >= 6.6.0
-- qasync >= 0.27.0
-- aiohttp >= 3.9.0
-- aioftp >= 0.21.0 (for FTP/FTPS support)
-- libtorrent >= 2.0.0 (for BitTorrent support)
-- yt-dlp >= 2024.1.0
-- ffmpeg (for video/audio processing)
-
-## Development Setup
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run specific test file
-pytest tests/test_engine.py
-
-# Run with coverage
-pytest --cov=core --cov=ui --cov-report=html
-
-# Run performance benchmarks
-pytest tests/performance/ -m benchmark
-```
-
-### Code Style
-
-```bash
-# Format code with Black
-black .
-
-# Type checking with mypy
-mypy core/ ui/ utils/
-
-# Linting
-pylint core/ ui/ utils/
-```
-
-### Project Structure
-
-```
-spider_manager/
-├── main.py                      # Entry point
-├── config/                      # Configuration
-│   ├── constants.py             # App constants
-│   └── settings.py              # User preferences
-├── core/                        # Core download engine
-│   ├── download_engine.py       # Multi-segment downloader
-│   ├── queue_manager.py         # Queue management
-│   ├── scheduler.py             # Time-based scheduling
-│   ├── speed_limiter.py         # Bandwidth throttling
-│   ├── resume_handler.py        # Resume support
-│   └── protocol_handler.py      # Protocol handling
-├── ui/                          # PyQt6 UI
-│   ├── main_window.py           # Main window
-│   ├── dialogs/                 # Dialog windows
-│   ├── widgets/                 # Custom widgets
-│   └── themes/                  # Theme management
-├── plugins/                     # Plugin system
-│   ├── plugin_base.py           # Plugin base class
-│   ├── browser_extension.py     # Browser integration
-│   ├── yt_dlp_plugin.py         # Video extraction
-│   ├── ftp_plugin.py            # FTP/FTPS protocol support
-│   └── torrent_plugin.py        # BitTorrent protocol support
-├── utils/                       # Utilities
-│   ├── file_utils.py            # File operations
-│   ├── network_utils.py         # Network helpers
-│   ├── url_parser.py            # URL parsing
-│   └── logger.py                # Logging
-├── tests/                       # Test suite
-│   ├── test_engine.py
-│   ├── test_queue.py
-│   ├── test_utils.py
-│   └── performance/             # Performance benchmarks
-└── docs/                        # Documentation
-```
-
-## Architecture
-
-### Download Engine
-
-The download engine (`core/download_engine.py`) is the heart of the application. It supports multiple download modes:
-
-- **DIRECT**: Standard HTTP/HTTPS download with multi-segment support
-- **STREAM_HLS**: HLS streaming with ffmpeg integration
-- **STREAM_DASH**: DASH streaming with ffmpeg integration
-- **YTDLP**: yt-dlp subprocess wrapper for video sites
-- **BLOB**: Blob URL fallback handling
-- **FTP**: FTP/FTPS protocol downloads via aioftp
-- **TORRENT**: BitTorrent downloads via libtorrent
-
-Key features:
-- Adaptive segment count based on file size
-- Speed limiting integration
-- Checksum verification (SHA-256, MD5)
-- Resume support via .part files
-- Connection retry logic
-
-### Queue Manager
-
-The queue manager (`core/queue_manager.py`) handles:
-
-- Priority-based queuing (high/normal/low)
-- Concurrency control
-- Category-based filtering
-- Scheduler integration
-- Persistent queue storage
-- Signal emission for UI updates
-
-### Plugin System
-
-The plugin system (`plugins/plugin_base.py`) provides:
-
-- Capability flags (URL handling, stream extraction, metadata)
-- Standardized plugin interface
-- yt-dlp integration for video sites
-- Browser extension IPC handler
-- FTP/FTPS plugin with authentication and resume support
-- BitTorrent plugin with magnet link and peer management
-
+<!-- CONTRIBUTING -->
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+Contributions make the open source community an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+If you have a suggestion, fork the repo and create a pull request. You can also simply open an issue with the "Enhancement" tag. Don't forget to give the project a star⭐! Thanks again!
+
+1. Fork the Project
+2. Create your Feature Branch (git checkout -b feature/AmazingFeature)
+3. Commit your Changes (git commit -m 'Add some AmazingFeature')
+4. Push to the Branch (git push origin feature/AmazingFeature)
 5. Open a Pull Request
 
 ### Code Style Guidelines
@@ -186,35 +93,31 @@ The plugin system (`plugins/plugin_base.py`) provides:
 - Mock external dependencies (network, filesystem)
 - Add performance benchmarks for critical paths
 
-## Building for Distribution
-
-### Windows Installer
-
-```bash
-# Build with PyInstaller
-pyinstaller spider_manager.spec
-
-# Create NSIS installer
-makensis installer.nsi
-```
-
-See `docs/BUILD.md` for detailed build instructions.
-
+<!-- LICENSE -->
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Distributed under the MIT License. Open `LICENSE` for more details.
 
-## Acknowledgments
+Copyright © 2024-2026 Spider Manager Team.
 
-- Inspired by Internet Download Manager (IDM)
-- Built with PyQt6 and qasync
-- Uses yt-dlp for video extraction
-- Uses aiohttp for async HTTP operations
-- Uses ffmpeg for media processing
+<!-- CONTACT -->
+## Contact
 
-## Support
+* **Documentation**: See `docs/USER_GUIDE.md` for user documentation
+* **API Docs**: See `docs/API.md` for API documentation
+* **Build Docs**: See `docs/BUILD.md` for build instructions
+* **Issues**: Report bugs on GitHub Issues
 
-- **Documentation**: See `docs/USER_GUIDE.md` for user documentation
-- **API Docs**: See `docs/API.md` for API documentation
-- **Build Docs**: See `docs/BUILD.md` for build instructions
-- **Issues**: Report bugs on GitHub Issues
+<!-- REFERENCES -->
+## References
+
+* [aiohttp](https://github.com/aio-libs/aiohttp) Async HTTP client/server for asyncio
+* [aioftp](https://github.com/aio-libs/aioftp) Ftp client/server for asyncio
+* [libtorrent](https://github.com/arvidn/libtorrent) An efficient feature complete C++ bittorrent implementation
+* [PyQt6](https://github.com/PyQt6/PyQt6) Python bindings for the Qt application framework
+* [qasync](https://github.com/CabbageDevelopment/qasync) Implementation of the PEP 3156 event loop
+* [yt-dlp](https://github.com/yt-dlp/yt-dlp) A youtube-dl fork with additional features and fixes
+* [FFmpeg](https://ffmpeg.org/) A complete, cross-platform solution to record, convert and stream audio and video
+* [pytest](https://github.com/pytest-dev/pytest) The pytest framework makes it easy to write simple tests
+* [Black](https://github.com/psf/black) The uncompromising Python code formatter
+* [mypy](https://github.com/python/mypy) Optional static typing for Python

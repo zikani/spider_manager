@@ -227,14 +227,14 @@ class DownloadTask:
         if self.progress_callback:
             try:
                 self.progress_callback(self)
-            except Exception:
+            except (TypeError, ValueError, RuntimeError):
                 pass
 
     def _fire_state(self):
         if self.state_callback:
             try:
                 self.state_callback(self)
-            except Exception:
+            except (TypeError, ValueError, RuntimeError):
                 pass
 
 
@@ -246,7 +246,7 @@ def _find_ffmpeg() -> str:
         cfg_path = get_settings().get("ffmpeg_path", "")
         if cfg_path and os.path.isfile(cfg_path):
             return cfg_path
-    except Exception:
+    except (ImportError, KeyError, AttributeError):
         pass
 
     found = shutil.which("ffmpeg")
@@ -866,7 +866,7 @@ class DownloadEngine:
             from utils.file_categorizer import DownloadPathManager
             pm = DownloadPathManager(get_download_directory())
             return pm.get_temp_path()
-        except Exception:
+        except (ImportError, KeyError, AttributeError, OSError):
             return task.save_path
 
     async def _run_direct(self, task: DownloadTask):
@@ -1339,7 +1339,19 @@ class DownloadEngine:
             ]
 
             if task.headers.get("Cookie"):
-                cmd += ["--add-header", f"Cookie:{task.headers['Cookie']}"]
+                import tempfile
+                cookie_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+                try:
+                    cookie_file.write(task.headers['Cookie'])
+                    cookie_file.close()
+                    cmd += ["--cookies", cookie_file.name]
+                    task._cookie_file = cookie_file.name
+                except (IOError, OSError):
+                    cookie_file.close()
+                    try:
+                        os.unlink(cookie_file.name)
+                    except OSError:
+                        pass
 
             if task.referrer:
                 cmd += ["--referer", task.referrer]
@@ -1347,6 +1359,9 @@ class DownloadEngine:
             proxy = current_proxy()
             if proxy:
                 cmd += ["--proxy", proxy]
+
+            # Add impersonation to bypass Cloudflare anti-bot challenges
+            cmd += ["--extractor-args", "generic:impersonate"]
 
             log.info("[yt-dlp] Starting: %s", task.url)
             task.state      = DownloadState.DOWNLOADING
@@ -1410,10 +1425,17 @@ class DownloadEngine:
                 task.error  = f"yt-dlp exit {proc.returncode}: {err_text}"
                 log.error("[yt-dlp] %s", task.error)
 
+            # Cleanup temporary cookie file
+            if hasattr(task, '_cookie_file'):
+                try:
+                    os.unlink(task._cookie_file)
+                except OSError:
+                    pass
+
         except asyncio.CancelledError:
             try:
                 proc.kill()
-            except Exception:
+            except (ProcessLookupError, OSError):
                 pass
             raise
         except Exception as e:
