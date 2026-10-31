@@ -341,6 +341,10 @@ class EnhancedCategorizer:
  
 class DownloadPathManager:
     """Manages download paths with automatic categorization."""
+    
+    # Class-level cache for directory existence checks
+    _ensured_dirs: set = set()
+    _cache_lock = None
  
     def __init__(self, base_download_dir: str):
         self.base_dir = Path(base_download_dir)
@@ -348,7 +352,12 @@ class DownloadPathManager:
         self._ensure_directories()
  
     def _ensure_directories(self):
-        """Ensure all category directories exist."""
+        """Ensure all category directories exist (cached per session)."""
+        # Use session-level cache to avoid repeated checks
+        base_key = str(self.base_dir)
+        if base_key in DownloadPathManager._ensured_dirs:
+            return
+        
         categories = [
             FileCategory.PROGRAMS,
             FileCategory.DOCUMENTS,
@@ -364,6 +373,8 @@ class DownloadPathManager:
             category_dir = self.base_dir / category
             category_dir.mkdir(parents=True, exist_ok=True)
             log.debug(f"Ensured directory exists: {category_dir}")
+        
+        DownloadPathManager._ensured_dirs.add(base_key)
  
     def get_category_path(self, category: str) -> Path:
         """Get the full path for a category directory."""
@@ -388,7 +399,7 @@ class DownloadPathManager:
         if category:
             target_dir = self.get_category_path(category)
         else:
-            category = FileCategorizer.categorize(filename, mime_type)
+            category = EnhancedCategorizer.categorize(filename, mime_type)
             target_dir = self.get_category_path(category)
  
         return str(target_dir / filename)
@@ -469,5 +480,7 @@ def get_categorized_save_path(filename: str, base_dir: Optional[str] = None, mim
  
     manager = DownloadPathManager(base_dir)
     return manager.get_save_path(filename, mime_type)
- 
 
+
+# Backward compatibility alias
+FileCategorizer = EnhancedCategorizer

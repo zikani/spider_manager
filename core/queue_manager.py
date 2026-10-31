@@ -6,10 +6,13 @@ Manages the global download queue with priority scheduling and concurrency contr
 import asyncio
 import uuid
 import json
+import time
 from pathlib import Path
 from collections import deque
 from collections.abc import Callable
 from typing import Optional
+
+import aiofiles
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -31,6 +34,7 @@ class QueueManager(QObject):
     download_completed = pyqtSignal(str)
     download_failed = pyqtSignal(str)
     queue_finished = pyqtSignal()
+    tasks_loaded = pyqtSignal()
 
     def __init__(
         self,
@@ -48,6 +52,15 @@ class QueueManager(QObject):
         self._lock = asyncio.Lock()
         self._dispatch_task: Optional[asyncio.Task] = None
         self._dispatch_pending: bool = False
+        # Debouncing for queue persistence
+        self._save_pending: bool = False
+        self._save_task: Optional[asyncio.Task] = None
+        self._last_save_time: float = 0.0
+        self._save_debounce_delay: float = 5.0  # seconds
+        self._max_save_interval: float = 30.0  # seconds
+        # Cache for all_tasks to avoid repeated list conversions
+        self._all_tasks_cache: Optional[list[DownloadTask]] = None
+        self._cache_dirty: bool = True
         self._load_queue()
 
     def _load_queue(self):
@@ -57,7 +70,11 @@ class QueueManager(QObject):
             return
         try:
             with open(config_path, "r") as f:
-                data = json.load(f)
+                content = f.read().strip()
+                if not content:
+                    log.debug("Queue file is empty, skipping load")
+                    return
+                data = json.loads(content)
             for d in data.get("queue", []):
                 self._queue.append(self._dict_to_task(d))
             for d in data.get("active", []):
@@ -66,11 +83,18 @@ class QueueManager(QObject):
                 self._queue.append(t)
             for d in data.get("completed", []):
                 self._completed.append(self._dict_to_task(d))
+            self._invalidate_cache()
+            self.tasks_loaded.emit()
+            log.debug("Queue loaded from disk, emitted tasks_loaded signal")
         except Exception as e:
             log.warning("Failed to load queue from %s: %s", config_path, e)
 
     def save_queue(self):
-        """Save the current queue to a JSON file."""
+        """Request queue save with debouncing."""
+        self._schedule_save()
+
+    async def _save_queue_now(self):
+        """Immediately save the current queue to a JSON file."""
         data = {
             "queue": [self._task_to_dict(t) for t in self._queue],
             "active": [self._task_to_dict(t) for t in self._active.values()],
@@ -78,8 +102,34 @@ class QueueManager(QObject):
         }
         config_dir = Path.home() / ".spider_manager"
         config_dir.mkdir(exist_ok=True)
-        with open(config_dir / "queue.json", "w") as f:
-            json.dump(data, f, indent=4)
+        
+        async with aiofiles.open(config_dir / "queue.json", "w") as f:
+            await f.write(json.dumps(data, indent=4))
+        
+        self._last_save_time = time.time()
+        log.debug("Queue saved to disk")
+
+    def _schedule_save(self):
+        """Schedule a debounced save operation."""
+        if self._save_pending:
+            return
+        
+        self._save_pending = True
+        
+        # Check if we need to force save due to max interval
+        time_since_save = time.time() - self._last_save_time
+        delay = min(self._save_debounce_delay, max(0, self._max_save_interval - time_since_save))
+        
+        async def _save_wrapper():
+            try:
+                await asyncio.sleep(delay)
+                await self._save_queue_now()
+            except Exception as e:
+                log.error("Error saving queue: %s", e)
+            finally:
+                self._save_pending = False
+        
+        self._save_task = asyncio.create_task(_save_wrapper())
 
     def _task_to_dict(self, task: DownloadTask):
         from core.download_engine import DownloadSegment
@@ -165,11 +215,19 @@ class QueueManager(QObject):
 
     @property
     def all_tasks(self) -> list[DownloadTask]:
-        return list(self._queue) + list(self._active.values()) + self._completed
+        """Cached property to avoid repeated list conversions."""
+        if self._cache_dirty or self._all_tasks_cache is None:
+            self._all_tasks_cache = list(self._queue) + list(self._active.values()) + self._completed
+            self._cache_dirty = False
+        return self._all_tasks_cache
 
     def tasks_snapshot(self) -> list[DownloadTask]:
         """Stable ordering: queue order, then active, then completed (recent last)."""
-        return list(self._queue) + list(self._active.values()) + list(self._completed)
+        return self.all_tasks
+
+    def _invalidate_cache(self):
+        """Mark the cache as dirty when queue changes."""
+        self._cache_dirty = True
 
     def create_task(
         self,
@@ -202,6 +260,8 @@ class QueueManager(QObject):
     async def add(self, task: DownloadTask) -> str:
         async with self._lock:
             self._queue.append(task)
+        self._invalidate_cache()
+        self.save_queue()
         await self._try_dispatch()
         return task.id
 
@@ -213,6 +273,8 @@ class QueueManager(QObject):
             task = self._find(task_id)
             if task and task.state != DownloadState.PAUSED:
                 task.state = DownloadState.PAUSED
+        self._invalidate_cache()
+        self.save_queue()
 
     
     async def resume(self, task_id: str):
@@ -228,6 +290,8 @@ class QueueManager(QObject):
                 del self._active[task_id]
             self._queue.appendleft(task)
         
+        self._invalidate_cache()
+        self.save_queue()
         await self._try_dispatch()
 
     async def cancel(self, task_id: str):
@@ -241,6 +305,8 @@ class QueueManager(QObject):
             self._queue = deque(t for t in self._queue if t.id != task_id)
             if not was_active:
                 self._completed.append(task)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def retry(self, task_id: str):
         """Retry a failed or cancelled download."""
@@ -267,6 +333,8 @@ class QueueManager(QObject):
             
             self._queue.appendleft(task)
         
+        self._invalidate_cache()
+        self.save_queue()
         log.info("Retrying task: %s (attempt %d)", task.filename, task.retry_count)
         await self._try_dispatch()
 
@@ -274,6 +342,8 @@ class QueueManager(QObject):
         if self._find(task_id):
             self._completed = [t for t in self._completed if t.id != task_id]
             self._queue = deque(t for t in self._queue if t.id != task_id)
+            self._invalidate_cache()
+            self.save_queue()
 
     def _find(self, task_id: str) -> Optional[DownloadTask]:
         if task_id in self._active:
@@ -323,7 +393,6 @@ class QueueManager(QObject):
                         self._queue.popleft()
                         self._active[task.id] = task
                         asyncio.create_task(self._run_task(task))
-                        break
                     else:
                         self._queue.popleft()
                         self._queue.append(task)
@@ -426,6 +495,7 @@ class QueueManager(QObject):
                 task.state = DownloadState.QUEUED
                 self._queue = deque(t for t in self._queue if t.id != task.id)
                 self._queue.appendleft(task)
+        self._invalidate_cache()
         await self._try_dispatch()
 
     async def pause_all(self):
@@ -440,6 +510,8 @@ class QueueManager(QObject):
             self._queue.clear()
             self._active.clear()
             self._completed.clear()
+        self._invalidate_cache()
+        self.save_queue()
 
     async def move_to_top(self, task_id: str):
         """Move task to top of queue."""
@@ -448,6 +520,8 @@ class QueueManager(QObject):
             if task and task in self._queue:
                 self._queue.remove(task)
                 self._queue.appendleft(task)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def move_up(self, task_id: str):
         """Move task up in queue."""
@@ -459,6 +533,8 @@ class QueueManager(QObject):
                     queue_list = list(self._queue)
                     queue_list[idx], queue_list[idx-1] = queue_list[idx-1], queue_list[idx]
                     self._queue = deque(queue_list)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def move_down(self, task_id: str):
         """Move task down in queue."""
@@ -470,6 +546,8 @@ class QueueManager(QObject):
                 if idx < len(queue_list) - 1:
                     queue_list[idx], queue_list[idx+1] = queue_list[idx+1], queue_list[idx]
                     self._queue = deque(queue_list)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def move_to_bottom(self, task_id: str):
         """Move task to bottom of queue."""
@@ -478,6 +556,8 @@ class QueueManager(QObject):
             if task and task in self._queue:
                 self._queue.remove(task)
                 self._queue.append(task)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def shuffle(self):
         """Shuffle the queue order."""
@@ -486,6 +566,8 @@ class QueueManager(QObject):
             queue_list = list(self._queue)
             random.shuffle(queue_list)
             self._queue = deque(queue_list)
+        self._invalidate_cache()
+        self.save_queue()
 
     async def restart_failed(self):
         """Restart all failed downloads."""
@@ -497,6 +579,8 @@ class QueueManager(QObject):
                     task.retry_count = 0
                     self._queue.append(task)
             self._completed = [t for t in self._completed if t.state != DownloadState.ERROR]
+        self._invalidate_cache()
+        self.save_queue()
         await self._try_dispatch()
 
     async def force_check_all(self):
@@ -505,6 +589,17 @@ class QueueManager(QObject):
             if task.url:
                 pass
 
+    async def shutdown(self):
+        """Cleanup pending tasks and save queue before shutdown."""
+        # Cancel pending save task
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+            try:
+                await self._save_task
+            except asyncio.CancelledError:
+                pass
+        # Save queue immediately
+        await self._save_queue_now()
 
     def get_stats(self) -> dict:
         active = list(self._active.values())

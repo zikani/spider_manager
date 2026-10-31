@@ -82,7 +82,7 @@ class SpiderMainWindow(QMainWindow):
 
         self._stats_timer = QTimer(self)
         self._stats_timer.timeout.connect(self._refresh_stats)
-        self._stats_timer.start(500)
+        self._stats_timer.start(1000)  # Increased from 500ms to 1000ms
 
         self._bridge.tasks_changed.connect(self._on_tasks_changed)
         self._bridge.stats_changed.connect(self._refresh_stats)
@@ -822,8 +822,6 @@ class SpiderMainWindow(QMainWindow):
                 
                 def _pc(t): self._bridge.task_progress.emit(t.id)
                 def _sc(t): 
-                    if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                        asyncio.create_task(self._queue.handle_natural_pause_exit(t))
                     self._bridge.tasks_changed.emit(); 
                     self._bridge.stats_changed.emit()
                 task.progress_callback = _pc
@@ -979,8 +977,6 @@ class SpiderMainWindow(QMainWindow):
             
             def _pc(t): self._bridge.task_progress.emit(t.id)
             def _sc(t): 
-                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
                 self._bridge.tasks_changed.emit(); 
                 self._bridge.stats_changed.emit()
             task.progress_callback = _pc
@@ -1019,8 +1015,6 @@ class SpiderMainWindow(QMainWindow):
                 
                 def _pc(t): self._bridge.task_progress.emit(t.id)
                 def _sc(t): 
-                    if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                        asyncio.create_task(self._queue.handle_natural_pause_exit(t))
                     self._bridge.tasks_changed.emit(); 
                     self._bridge.stats_changed.emit()
                 task.progress_callback = _pc
@@ -1054,8 +1048,6 @@ class SpiderMainWindow(QMainWindow):
             
             def _pc(t): self._bridge.task_progress.emit(t.id)
             def _sc(t): 
-                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
                 self._bridge.tasks_changed.emit(); 
                 self._bridge.stats_changed.emit()
             task.progress_callback = _pc
@@ -1096,8 +1088,6 @@ class SpiderMainWindow(QMainWindow):
             
             def _pc(t): self._bridge.task_progress.emit(t.id)
             def _sc(t): 
-                if t.state == DownloadState.PAUSED and t.id not in self._queue._active:
-                    asyncio.create_task(self._queue.handle_natural_pause_exit(t))
                 self._bridge.tasks_changed.emit(); 
                 self._bridge.stats_changed.emit()
             task.progress_callback = _pc
@@ -1253,6 +1243,14 @@ class SpiderMainWindow(QMainWindow):
         self.title_label.setText(
             f"Spider Manager · {stats.get('active', 0)} active · {stats.get('queued', 0)} queued"
         )
+        
+        # Adaptive timer: slow down when idle, speed up when active
+        if active_count > 0 or stats.get('queued', 0) > 0:
+            if self._stats_timer.interval() != 1000:
+                self._stats_timer.setInterval(1000)  # 1s when active
+        else:
+            if self._stats_timer.interval() != 5000:
+                self._stats_timer.setInterval(5000)  # 5s when idle
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1273,8 +1271,7 @@ class SpiderMainWindow(QMainWindow):
             event.ignore()
             return
         
-        self._queue.save_queue()
-        asyncio.ensure_future(self._engine.close())
+        # Cleanup is handled by main.py's cleanup function
         event.accept()
 
     def minimize_window(self, event):

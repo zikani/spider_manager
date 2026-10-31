@@ -7,6 +7,7 @@ class DownloadBridge(QObject):
     """Emitted from asyncio callbacks; receivers run on GUI thread."""
 
     tasks_changed = pyqtSignal()
+    tasks_loaded = pyqtSignal()
     stats_changed = pyqtSignal()
     task_progress = pyqtSignal(str)
     pause_resume_requested = pyqtSignal(str)

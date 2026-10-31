@@ -38,7 +38,7 @@ class UpdateChecker(QThread):
             
             if random.choice([True, False]):
                 update_info = {
-                    "version": "1.1.0",
+                    "version": "1.2.0",
                     "release_date": "2024-01-15",
                     "description": "New features and bug fixes",
                     "download_url": "https://spidermanager.com/download",

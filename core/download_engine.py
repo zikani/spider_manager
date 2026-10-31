@@ -61,6 +61,7 @@ from typing import Callable, Optional
 from urllib.parse import urljoin, urlparse
 
 import aiofiles
+import aiofiles.os
 import aiohttp
 
 from config.constants import (
@@ -178,6 +179,8 @@ class DownloadTask:
     progress_callback:   Optional[Callable]       = None
     state_callback:      Optional[Callable]       = None
 
+    _last_progress_time: float                   = field(default_factory=time.time)
+
 
     @property
     def progress(self) -> float:
@@ -224,11 +227,20 @@ class DownloadTask:
         }
 
     def _fire_progress(self):
-        if self.progress_callback:
-            try:
-                self.progress_callback(self)
-            except (TypeError, ValueError, RuntimeError):
-                pass
+        """Throttled progress callback - max 10 calls per second."""
+        if not self.progress_callback:
+            return
+        
+        now = time.time()
+        # Throttle to max 10 calls per second (100ms minimum interval)
+        if now - self._last_progress_time < 0.1:
+            return
+        
+        self._last_progress_time = now
+        try:
+            self.progress_callback(self)
+        except (TypeError, ValueError, RuntimeError):
+            pass
 
     def _fire_state(self):
         if self.state_callback:
@@ -659,8 +671,10 @@ class DownloadEngine:
             connector = aiohttp.TCPConnector(
                 limit=100,
                 limit_per_host=16,
-                ttl_dns_cache=300,
+                ttl_dns_cache=3600,  # Increased from 300s to 1 hour
                 enable_cleanup_closed=True,
+                force_close=False,  # Enable connection keep-alive
+                keepalive_timeout=30,  # Keep connections alive for 30s
             )
             timeout = aiohttp.ClientTimeout(
                 connect   = CONNECTION_TIMEOUT,
@@ -1003,6 +1017,9 @@ class DownloadEngine:
         temp_out_path = os.path.join(temp_dir, task.filename)
 
         try:
+            # Use larger buffer for better performance
+            MERGE_CHUNK_SIZE = CHUNK_SIZE * 8  # 1MB chunks
+            
             async with aiofiles.open(temp_out_path, "wb") as out:
                 for seg in sorted(task.segments, key=lambda s: s.index):
                     if not os.path.exists(seg.temp_path):
@@ -1014,7 +1031,7 @@ class DownloadEngine:
                         continue
                     async with aiofiles.open(seg.temp_path, "rb") as part:
                         while True:
-                            data = await part.read(CHUNK_SIZE)
+                            data = await part.read(MERGE_CHUNK_SIZE)
                             if not data:
                                 break
                             await out.write(data)
@@ -1034,7 +1051,11 @@ class DownloadEngine:
             final = task.full_path
             if temp_out_path != final:
                 os.makedirs(os.path.dirname(final), exist_ok=True)
-                shutil.move(temp_out_path, final)
+                # Use async file move if available, otherwise use shutil
+                try:
+                    await aiofiles.os.replace(temp_out_path, final)
+                except (ImportError, AttributeError):
+                    shutil.move(temp_out_path, final)
 
             log.info("[direct] Merge complete: %s", task.filename)
 

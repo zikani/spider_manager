@@ -88,6 +88,7 @@ def main():
         scheduler_allows_dispatch=_scheduler_allows_dispatch,
     )
     bridge = DownloadBridge()
+    queue.tasks_loaded.connect(bridge.tasks_loaded.emit)
 
     sound_manager = get_sound_manager()
     if app_settings.get_sound_notifications_enabled():
@@ -109,6 +110,12 @@ def main():
 
     ipc_handler = ExtensionIPCHandler(queue, dialog_callback=window._on_intercepted_download)
     loop.call_soon(lambda: asyncio.create_task(ipc_handler.start()))
+
+    async def cleanup():
+        await ipc_handler.stop()
+        await queue.shutdown()
+
+    app.aboutToQuit.connect(lambda: asyncio.create_task(cleanup()))
 
     with loop:
         loop.run_forever()

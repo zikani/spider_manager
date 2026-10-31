@@ -353,3 +353,23 @@ def get_sound_notifications_enabled() -> bool:
 def set_sound_notifications_enabled(enabled: bool) -> None:
     """Enable or disable sound notifications globally."""
     _settings().setValue("sound_notifications_enabled", bool(enabled))
+
+
+def get_settings() -> dict:
+    """Get all settings as a dictionary for plugin compatibility."""
+    s = _settings()
+    return {
+        "download_path": get_download_directory(),
+        "preferred_video_ext": "mp4",
+        "preferred_quality": "best",
+        "embed_subtitles": False,
+        "write_thumbnail": False,
+        "cookies_file": "",
+        "max_concurrent_fragments": 4,
+        "stream_segment_timeout": 30.0,
+        "prefer_native_hls": False,
+        "hls_use_mpegts": True,
+        "dash_prefer_audio_lang": "en",
+        "ffmpeg_path": "",
+        "stream_retry_count": 3,
+    }

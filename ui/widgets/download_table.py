@@ -120,6 +120,7 @@ class DownloadModel(QAbstractTableModel):
         self._filter = "all"
         self._search = ""
         bridge.tasks_changed.connect(self._on_tasks_changed)
+        bridge.tasks_loaded.connect(self._on_tasks_changed)
         bridge.stats_changed.connect(self._on_tasks_changed)
         bridge.task_progress.connect(self._on_task_progress)
 

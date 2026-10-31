@@ -79,7 +79,8 @@ class ChangelogDialog(QDialog):
     def _populate_versions(self):
         """Populate version combo box with available versions."""
         versions = [
-            "1.0.0 (Current)",
+            "1.1.0 (Current)",
+            "1.0.0",
             "0.9.0 Beta",
             "0.8.0 Alpha", 
             "0.7.0 Alpha",
@@ -161,8 +162,8 @@ class ChangelogDialog(QDialog):
 
     def _show_current_version(self):
         """Show changelog for current version."""
-        self.version_combo.setCurrentText("1.0.0 (Current)")
-        self._load_version("1.0.0 (Current)")
+        self.version_combo.setCurrentText("1.1.0 (Current)")
+        self._load_version("1.1.0 (Current)")
 
     def _load_version(self, version_text):
         """Load changelog for selected version."""
@@ -193,6 +194,62 @@ class ChangelogDialog(QDialog):
     def _get_changelog_data(self, version):
         """Get changelog data for specific version."""
         changelog = {
+            "1.1.0": {
+                "release_notes": """
+                <h2>Spider Manager 1.1.0 - Protocol Expansion</h2>
+                <p><b>Release Date:</b> October 31, 2026</p>
+                <p><b>Type:</b> Minor Release</p>
+                
+                <h3>Major Protocol Support</h3>
+                <p>This release adds comprehensive support for FTP, BitTorrent, and enhanced streaming protocols,
+                significantly expanding Spider Manager's download capabilities beyond HTTP/HTTPS.</p>
+                
+                <h3>New Download Protocols</h3>
+                <ul>
+                    <li>Full FTP/FTPS support with authentication and resume capability</li>
+                    <li>BitTorrent and magnet link download support with peer management</li>
+                    <li>Enhanced streaming detection for HLS and DASH protocols</li>
+                    <li>Platform-specific detection for Netflix, Hulu, Amazon Prime</li>
+                </ul>
+                
+                <h3>Plugin Architecture</h3>
+                <ul>
+                    <li>Plugin-based download handling for extensibility</li>
+                    <li>Dedicated FTP and torrent plugin implementations</li>
+                    <li>Improved error handling for plugin dependencies</li>
+                </ul>
+                """,
+                "features": [
+                    "FTP and FTPS download support with authentication",
+                    "BitTorrent and magnet link download handling",
+                    "Enhanced streaming link detection (HLS, DASH protocols)",
+                    "Platform-specific media detection (Netflix, Hulu, Amazon Prime)",
+                    "Plugin-based download architecture for extensibility",
+                    "Custom categorization rules for file organization",
+                    "Enhanced file categorization with improved logic",
+                    "Sound notification system for download events",
+                    "Automatic temporary file cleanup on startup",
+                    "Improved URL validation and HTML entity decoding",
+                    "Better protocol detection and prioritization",
+                    "Enhanced browser extension integration"
+                ],
+                "bugfixes": [
+                    "Fixed UI bugs in theme rendering",
+                    "Improved error handling in protocol detection",
+                    "Fixed URL validation for special characters",
+                    "Resolved HTML entity decoding issues in magnet links",
+                    "Fixed plugin dependency error reporting",
+                    "Improved logging for better error tracking",
+                    "Fixed categorization edge cases",
+                    "Resolved streaming detection false positives"
+                ],
+                "known_issues": [
+                    "Some video sites may require periodic plugin updates",
+                    "Very high-speed connections (>1Gbps) may show inaccurate speeds",
+                    "System tray icon may not appear on some Linux desktops",
+                    "Network drives may have slower performance than local storage"
+                ]
+            },
             "1.0.0": {
                 "release_notes": """
                 <h2>Spider Manager 1.0.0 - Stable Release</h2>

@@ -3,7 +3,7 @@ Spider Manager - Application Constants
 """
 
 APP_NAME = "Spider Manager"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_AUTHOR = "Spider Manager Team"
 APP_DESCRIPTION = "A professional download manager built with Python and PyQt6"
 APP_URL = "https://github.com/yourusername/spider-manager"

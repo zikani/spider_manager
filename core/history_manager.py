@@ -9,6 +9,8 @@ import sqlite3
 import json
 import csv
 import os
+import asyncio
+import aiosqlite
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -127,13 +129,28 @@ class HistoryManager:
             db_path = str(history_dir / "history.db")
         
         self.db_path = db_path
-        self._conn: Optional[sqlite3.Connection] = None
-        self._init_db()
+        self._conn: Optional[aiosqlite.Connection] = None
+        self._init_lock = asyncio.Lock()
+        self._initialized = False
 
-    def _init_db(self) -> None:
-        """Initialize database schema."""
-        with self._get_connection() as conn:
-            conn.execute("""
+    async def _ensure_initialized(self) -> None:
+        """Ensure database is initialized."""
+        if not self._initialized:
+            async with self._init_lock:
+                if not self._initialized:
+                    await self._init_db()
+                    self._initialized = True
+
+    async def _init_db(self) -> None:
+        """Initialize database schema with WAL mode."""
+        async with aiosqlite.connect(self.db_path) as conn:
+            # Enable WAL mode for better concurrency
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+            await conn.execute("PRAGMA busy_timeout=5000")  # 5 second timeout
+            
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS history (
                     id TEXT PRIMARY KEY,
                     url TEXT NOT NULL,
@@ -159,35 +176,29 @@ class HistoryManager:
             """)
             
             # Create indexes for common queries
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_state ON history(state)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON history(created_at)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_filename ON history(filename)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON history(category)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_state ON history(state)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON history(created_at)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_filename ON history(filename)")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON history(category)")
             
-            conn.commit()
+            await conn.commit()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get database connection."""
-        if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
-            self._conn.row_factory = sqlite3.Row
-        return self._conn
-
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close database connection."""
         if self._conn:
-            self._conn.close()
+            await self._conn.close()
             self._conn = None
 
-    def add_entry(self, entry: HistoryEntry) -> None:
+    async def add_entry(self, entry: HistoryEntry) -> None:
         """
         Add a new history entry.
         
         Args:
             entry: HistoryEntry to add
         """
-        with self._get_connection() as conn:
-            conn.execute("""
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("""
                 INSERT OR REPLACE INTO history (
                     id, url, filename, save_path, total_size, downloaded,
                     state, category, download_mode, speed, peak_speed, eta,
@@ -203,18 +214,19 @@ class HistoryManager:
                 entry.completed_at, json.dumps(entry.tags),
                 entry.referrer, json.dumps(entry.headers)
             ))
-            conn.commit()
+            await conn.commit()
             log.debug("Added history entry: %s", entry.filename)
 
-    def update_entry(self, entry: HistoryEntry) -> None:
+    async def update_entry(self, entry: HistoryEntry) -> None:
         """
         Update an existing history entry.
         
         Args:
             entry: HistoryEntry to update
         """
-        with self._get_connection() as conn:
-            conn.execute("""
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute("""
                 UPDATE history SET
                     url = ?, filename = ?, save_path = ?, total_size = ?,
                     downloaded = ?, state = ?, category = ?, download_mode = ?,
@@ -231,10 +243,10 @@ class HistoryManager:
                 json.dumps(entry.tags), entry.referrer,
                 json.dumps(entry.headers), entry.id
             ))
-            conn.commit()
+            await conn.commit()
             log.debug("Updated history entry: %s", entry.filename)
 
-    def get_entry(self, entry_id: str) -> Optional[HistoryEntry]:
+    async def get_entry(self, entry_id: str) -> Optional[HistoryEntry]:
         """
         Get a specific history entry by ID.
         
@@ -244,17 +256,19 @@ class HistoryManager:
         Returns:
             HistoryEntry if found, None otherwise
         """
-        with self._get_connection() as conn:
-            cursor = conn.execute(
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
                 "SELECT * FROM history WHERE id = ?",
                 (entry_id,)
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 return self._row_to_entry(row)
         return None
 
-    def get_all_entries(
+    async def get_all_entries(
         self,
         filter_type: HistoryFilter = HistoryFilter.ALL,
         search_query: str = "",
@@ -275,6 +289,7 @@ class HistoryManager:
         Returns:
             List of HistoryEntry objects
         """
+        await self._ensure_initialized()
         query = "SELECT * FROM history WHERE 1=1"
         params: List[Any] = []
 
@@ -315,12 +330,13 @@ class HistoryManager:
         query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        with self._get_connection() as conn:
-            cursor = conn.execute(query, params)
-            rows = cursor.fetchall()
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(query, params)
+            rows = await cursor.fetchall()
             return [self._row_to_entry(row) for row in rows]
 
-    def search(self, query: str, limit: int = 100) -> List[HistoryEntry]:
+    async def search(self, query: str, limit: int = 100) -> List[HistoryEntry]:
         """
         Full-text search across filename, URL, and tags.
         
@@ -331,44 +347,49 @@ class HistoryManager:
         Returns:
             List of matching HistoryEntry objects
         """
+        await self._ensure_initialized()
         search_pattern = f"%{query}%"
-        with self._get_connection() as conn:
-            cursor = conn.execute("""
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("""
                 SELECT * FROM history
                 WHERE filename LIKE ? OR url LIKE ? OR tags LIKE ?
                 ORDER BY created_at DESC
                 LIMIT ?
             """, (search_pattern, search_pattern, search_pattern, limit))
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
             return [self._row_to_entry(row) for row in rows]
 
-    def get_categories(self) -> List[str]:
+    async def get_categories(self) -> List[str]:
         """Get list of all unique categories."""
-        with self._get_connection() as conn:
-            cursor = conn.execute("SELECT DISTINCT category FROM history ORDER BY category")
-            return [row[0] for row in cursor.fetchall()]
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute("SELECT DISTINCT category FROM history ORDER BY category")
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
 
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """
-        Get overall statistics.
+        Get overall statistics with optimized single query.
         
         Returns:
             Dictionary with statistics
         """
-        with self._get_connection() as conn:
-            # Total entries
-            total = conn.execute("SELECT COUNT(*) FROM history").fetchone()[0]
-            
-            # By state
-            completed = conn.execute("SELECT COUNT(*) FROM history WHERE state = 'completed'").fetchone()[0]
-            failed = conn.execute("SELECT COUNT(*) FROM history WHERE state = 'error'").fetchone()[0]
-            cancelled = conn.execute("SELECT COUNT(*) FROM history WHERE state = 'cancelled'").fetchone()[0]
-            
-            # Total downloaded
-            total_downloaded = conn.execute("SELECT SUM(downloaded) FROM history").fetchone()[0] or 0
-            
-            # Total size
-            total_size = conn.execute("SELECT SUM(total_size) FROM history").fetchone()[0] or 0
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            # Single query to get all stats at once
+            cursor = await conn.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN state = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN state = 'error' THEN 1 ELSE 0 END) as failed,
+                    SUM(CASE WHEN state = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
+                    COALESCE(SUM(downloaded), 0) as total_downloaded,
+                    COALESCE(SUM(total_size), 0) as total_size
+                FROM history
+            """)
+            row = await cursor.fetchone()
+            total, completed, failed, cancelled, total_downloaded, total_size = row
             
             return {
                 "total_entries": total,
@@ -380,7 +401,7 @@ class HistoryManager:
                 "success_rate": round(completed / total * 100, 2) if total > 0 else 0.0
             }
 
-    def delete_entry(self, entry_id: str) -> bool:
+    async def delete_entry(self, entry_id: str) -> bool:
         """
         Delete a specific history entry.
         
@@ -390,29 +411,31 @@ class HistoryManager:
         Returns:
             True if deleted, False if not found
         """
-        with self._get_connection() as conn:
-            cursor = conn.execute("DELETE FROM history WHERE id = ?", (entry_id,))
-            conn.commit()
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute("DELETE FROM history WHERE id = ?", (entry_id,))
+            await conn.commit()
             deleted = cursor.rowcount > 0
             if deleted:
                 log.debug("Deleted history entry: %s", entry_id)
             return deleted
 
-    def clear_all(self) -> int:
+    async def clear_all(self) -> int:
         """
         Clear all history entries.
         
         Returns:
             Number of entries deleted
         """
-        with self._get_connection() as conn:
-            cursor = conn.execute("DELETE FROM history")
-            conn.commit()
+        await self._ensure_initialized()
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute("DELETE FROM history")
+            await conn.commit()
             count = cursor.rowcount
             log.info("Cleared %d history entries", count)
             return count
 
-    def clear_old_entries(self, days: int = 30) -> int:
+    async def clear_old_entries(self, days: int = 30) -> int:
         """
         Clear entries older than specified days.
         
@@ -422,13 +445,14 @@ class HistoryManager:
         Returns:
             Number of entries deleted
         """
+        await self._ensure_initialized()
         cutoff = datetime.now() - timedelta(days=days)
-        with self._get_connection() as conn:
-            cursor = conn.execute(
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(
                 "DELETE FROM history WHERE created_at < ?",
                 (cutoff.timestamp(),)
             )
-            conn.commit()
+            await conn.commit()
             count = cursor.rowcount
             log.info("Cleared %d history entries older than %d days", count, days)
             return count
