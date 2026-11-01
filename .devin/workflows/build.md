@@ -30,7 +30,7 @@ This workflow guides you through building Spider Manager for Windows.
 3. **Generate resources**
    ```bash
    python scripts/convert_svg_to_ico.py
-   python -c "from PyQt6.QtCore import QResource; from PyQt6.QtGui import QResourceFile; import os; os.system('pyrcc5 resources/icons/icons.qrc -o resources/icons/icons_rc.py')"
+   pyrcc6 resources/icons/icons.qrc -o resources/icons/icons_rc.py
    ```
 
 4. **Build executable with PyInstaller**
@@ -67,7 +67,7 @@ This workflow guides you through building Spider Manager for Windows.
 - Re-run PyInstaller
 
 **UI resources not loading:**
-- Ensure icons were generated with pyrcc5
+- Ensure icons were generated with pyrcc6
 - Check that resources are included in the spec file
 
 **Installer fails to build:**

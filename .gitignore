@@ -9,7 +9,6 @@ venv/
 *.part*
 *.log
 config/user_settings.json
-asset_generator.py
 verify_integration.py
 check_queue.py
 .pytest_cache

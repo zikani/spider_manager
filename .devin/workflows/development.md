@@ -42,7 +42,7 @@ This workflow guides you through setting up the development environment for Spid
 5. **Generate UI resources**
    ```bash
    python scripts/convert_svg_to_ico.py
-   pyrcc5 resources/icons/icons.qrc -o resources/icons/icons_rc.py
+   pyrcc6 resources/icons/icons.qrc -o resources/icons/icons_rc.py
    ```
 
 6. **Run the application**
@@ -148,7 +148,7 @@ spider_manager/
 - Check PYTHONPATH includes project root
 
 **UI not displaying correctly:**
-- Regenerate resources: `pyrcc5 resources/icons/icons.qrc -o resources/icons/icons_rc.py`
+- Regenerate resources: `pyrcc6 resources/icons/icons.qrc -o resources/icons/icons_rc.py`
 - Check PyQt6 installation: `pip install --upgrade PyQt6`
 
 **Tests failing:**

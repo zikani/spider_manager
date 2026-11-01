@@ -35,11 +35,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-cov pytest-asyncio pytest-mock
+        pip install PyQt6-Tools
     
     - name: Generate UI resources
       run: |
         python scripts/convert_svg_to_ico.py
-        pyrcc5 resources/icons/icons.qrc -o resources/icons/icons_rc.py
+        pyrcc6 resources/icons/icons.qrc -o resources/icons/icons_rc.py
     
     - name: Run tests
       run: |
